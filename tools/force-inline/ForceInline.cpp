@@ -15,7 +15,13 @@
 #include <llvm/IR/Module.h>
 #include <llvm/IR/PassManager.h>
 #include <llvm/Passes/PassBuilder.h>
+// Where LLVM keeps the plugin interface: llvm/Plugins since LLVM 22,
+// llvm/Passes before.
+#if __has_include(<llvm/Plugins/PassPlugin.h>)
+#include <llvm/Plugins/PassPlugin.h>
+#else
 #include <llvm/Passes/PassPlugin.h>
+#endif
 #include <llvm/Transforms/IPO/AlwaysInliner.h>
 
 namespace {
