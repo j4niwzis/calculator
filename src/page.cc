@@ -140,6 +140,42 @@ inline auto display_lines() {
                                    text_for<calc>([](const calc &c) { return result_text(c); }, one_line(30.0f, colour::kResult)))));
 }
 
+// The scientific keys: one row folded, three opened (the chevron says
+// which), as Android has them in a portrait window.
+inline auto scientific_folded() {
+  return column(vbox(4.0f, {.fillX = true, .height = 52.0f}),
+                key_row(key("\u221a", of{fn::square_root{}}, kScientificKey), key("\u03c0", put{constant::pi{}}, kScientificKey),
+                        key("^", choose{op::power{}}, kScientificKey), key("!", after{post::factorial{}}, kScientificKey),
+                        key("\u2304", expand{}, kScientificKey)));
+}
+inline auto scientific_opened() {
+  return column(vbox(4.0f, {.fillX = true, .height = 156.0f}),
+                key_row(key("\u221a", of{fn::square_root{}}, kScientificKey), key("\u03c0", put{constant::pi{}}, kScientificKey),
+                        key("^", choose{op::power{}}, kScientificKey), key("!", after{post::factorial{}}, kScientificKey),
+                        key("\u2303", expand{}, kScientificKey)),
+                key_row(projected<calc>(angles_label{}, key("RAD", switch_angles{}, kScientificKey)),
+                        inverting(sin_or_inverse{}, "sin", of{fn::sine{}}), inverting(cos_or_inverse{}, "cos", of{fn::cosine{}}),
+                        inverting(tan_or_inverse{}, "tan", of{fn::tangent{}}), key("e", put{constant::e{}}, kScientificKey)),
+                key_row(key("INV", switch_inverse{}, kScientificKey), inverting(ln_or_inverse{}, "ln", of{fn::natural_log{}}),
+                        inverting(log_or_inverse{}, "log", of{fn::common_log{}}), key("%", after{post::percent{}}, kScientificKey),
+                        key("x\u00b2", after{post::squared{}}, kScientificKey)));
+}
+
+// The keypad: Android's five rows of four.
+inline auto keypad() {
+  return column(vbox(8.0f, {.fillX = true, .grow = scene::axes::kY, .padding = {8.0f, 16.0f, 16.0f, 16.0f}}),
+                key_row(key("AC", clear{}, kClearKey), key("( )", parentheses{}, kOperatorKey), key("%", after{post::percent{}}, kOperatorKey),
+                        key("\u00f7", choose{op::divide{}}, kOperatorKey)),
+                key_row(key("7", digit{7}, kNumberKey), key("8", digit{8}, kNumberKey), key("9", digit{9}, kNumberKey),
+                        key("\u00d7", choose{op::multiply{}}, kOperatorKey)),
+                key_row(key("4", digit{4}, kNumberKey), key("5", digit{5}, kNumberKey), key("6", digit{6}, kNumberKey),
+                        key("\u2212", choose{op::subtract{}}, kOperatorKey)),
+                key_row(key("1", digit{1}, kNumberKey), key("2", digit{2}, kNumberKey), key("3", digit{3}, kNumberKey),
+                        key("+", choose{op::add{}}, kOperatorKey)),
+                key_row(key("0", digit{0}, kNumberKey), key(".", point{}, kNumberKey), key("\u232b", backspace{}, kNumberKey),
+                        key("=", equals{}, kEqualsKey)));
+}
+
 auto page() {
   return SKIFF_NAMED(Calculator,
       state<calc>(
