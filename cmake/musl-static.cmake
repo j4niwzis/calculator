@@ -58,8 +58,7 @@ set(CMAKE_MODULE_LINKER_FLAGS_INIT "-fuse-ld=lld -stdlib=libc++ -rtlib=compiler-
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 
 # Nothing of the machine's: every library is built here, from
-# cmake-everywhere's ports (CME_SYSTEM=NEVER, said by the workflow), into
-# prefixes of their own outside the sysroot -- so the find modes stay as
-# they are, the ports' prefixes found where cmake-everywhere says. The
-# machine's pkg-config files are never read.
-set(ENV{PKG_CONFIG_LIBDIR} "${CALCULATOR_SYSROOT}/usr/lib/pkgconfig:${CALCULATOR_SYSROOT}/usr/share/pkgconfig")
+# cmake-everywhere's ports (CME_SYSTEM=NEVER, said by the workflow), which
+# hands each its dependencies' pkg-config files itself. PKG_CONFIG_LIBDIR is
+# not set here: under it, Meson's cross build looked only in the sysroot,
+# found no libffi.pc of the port's, and took -lffi from nowhere.
