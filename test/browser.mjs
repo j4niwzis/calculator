@@ -8,7 +8,7 @@ const playwright = require('playwright');
 
 const url = process.argv[2];
 const shown = (page) => page.locator('[data-view=Display] > :last-child').innerText();
-const above = (page) => page.locator('[data-view=Display] > :first-child').innerText();
+const above = (page) => page.locator('[data-view=Display] > :nth-child(2)').innerText();
 const click = (page, label) => page.getByRole('button', {name: label, exact: true}).click();
 
 for (const kind of ['chromium', 'firefox']) {
