@@ -4,8 +4,7 @@
 // its handler presses it on the calculator. The keyboard presses the same
 // buttons (web/index.html).
 module;
-// Views named on the page (data-view): the page has no scene.
-#define SKIFF_NAMED_BASE ::skiff::web::Named
+// Named views: skiff.ui says what they are over (SKIFF_NAMED_BASE, ui::Named).
 #include <skiff/named.h>
 export module calculator.page;
 
