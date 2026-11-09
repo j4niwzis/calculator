@@ -218,6 +218,85 @@ jobs:
         with:
           path: public
 
+  # The app in a window, on Linux: SDL with X11 and Wayland built from
+  # cmake-everywhere's ports, Skia drawing -- Release, cached between runs.
+  desktop:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - name: clang 23, and what the ports are built with
+        run: |
+          sudo apt-get update || true
+          sudo apt-get install -y ninja-build python3 pkg-config meson bison \
+            lsb-release software-properties-common gnupg curl unzip
+          curl -fsSL https://apt.llvm.org/llvm.sh -o /tmp/llvm.sh
+          chmod +x /tmp/llvm.sh
+          sudo /tmp/llvm.sh 23 all
+          echo /usr/lib/llvm-23/bin >> "$GITHUB_PATH"
+      - name: cmake
+        run: |
+          version=4.3.4
+          curl -sSL -o cmake.tar.gz \
+            "https://github.com/Kitware/CMake/releases/download/v${version}/cmake-${version}-linux-x86_64.tar.gz"
+          sudo tar xzf cmake.tar.gz -C /opt
+          echo "/opt/cmake-${version}-linux-x86_64/bin" >> "$GITHUB_PATH"
+      # Skia is built with GN.
+      - name: gn
+        run: |
+          curl -sSL -o gn.zip "https://chrome-infra-packages.appspot.com/dl/gn/gn/linux-amd64/+/latest"
+          mkdir -p "$HOME/.local/bin" && unzip -o -j gn.zip gn -d "$HOME/.local/bin"
+          chmod +x "$HOME/.local/bin/gn" && echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: what import std reads from libstdc++
+        run: |
+          std=$(ls /usr/include/c++/*/bits/std.cc | sort -V | tail -1)
+          cat > /tmp/libstdc++.modules.json <<EOF
+          {
+            "version": 1,
+            "revision": 1,
+            "modules": [
+              { "logical-name": "std", "source-path": "$std",
+                "is-std-library": true },
+              { "logical-name": "std.compat",
+                "source-path": "${std%std.cc}std.compat.cc",
+                "is-std-library": true }
+            ]
+          }
+          EOF
+      - name: the compiler's build
+        run: echo "COMPILER_BUILD=$(clang++-23 --version | sha256sum | cut -c1-12)" >> "$GITHUB_ENV"
+      - uses: actions/cache/restore@v4
+        with:
+          path: |
+            build/window
+            ~/.cache/cmake-everywhere
+          key: window-${{ runner.os }}-${{ env.COMPILER_BUILD }}-${{ github.sha }}
+          restore-keys: window-${{ runner.os }}-${{ env.COMPILER_BUILD }}-
+      - name: the app, in a window
+        id: build
+        run: |
+          cmake -S . -B build/window -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER=clang-23 \
+            -DCMAKE_CXX_COMPILER=clang++-23 \
+            -DCMAKE_CXX_FLAGS="-stdlib=libstdc++" \
+            -DCMAKE_CXX_STDLIB_MODULES_JSON=/tmp/libstdc++.modules.json \
+            -DCALCULATOR_WINDOW=ON \
+            -DCME_STORE_ENABLED=ON -DCME_SOURCES_ENABLED=ON
+          cmake --build build/window --target calculator-window
+      - uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: |
+            build/window
+            ~/.cache/cmake-everywhere
+          key: window-${{ runner.os }}-${{ env.COMPILER_BUILD }}-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: calculator-linux-x86_64-${{ github.sha }}
+          path: build/window/calculator-window
+          if-no-files-found: error
+
   deploy:
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     needs: build

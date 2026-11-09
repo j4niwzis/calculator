@@ -172,6 +172,9 @@ using Model = skiff::ui::ModelOf<decltype(page())>;
 // the tree's, above.
 struct Hooks {
   [[nodiscard]] scene::Colour paper() const { return colour::kBackground; }
+  // The window's title, and its size as it opens: a phone's, upright.
+  [[nodiscard]] std::string_view title() const { return "Calculator"; }
+  [[nodiscard]] std::pair<int, int> window_size() const { return {412, 860}; }
   [[nodiscard]] std::string_view stylesheet() const { return "html,body{margin:0;height:100%}#skiff{height:100%}"; }
   [[nodiscard]] std::string_view head() const {
     return "<title>Calculator</title>\n"

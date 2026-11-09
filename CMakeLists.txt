@@ -58,20 +58,28 @@ if(NOT CALCULATOR_ENGINE_ONLY)
     VERSION 0.1.0)
   cme_declare_port(NAME skiff-framework PROVIDES skiff-framework skiff_framework
     GITHUB_REPOSITORY j4niwzis/skiff-framework
-    GIT_TAG a90c69292bddceef979b735c48ac18ab5b088c87
+    GIT_TAG ede655260718ac84beea6b31ede7d0df6390f95f
     VERSION 0.1.0)
-  # The page alone: the browser's own elements, no canvas (and none of
-  # skiff's scene). Forced: a build directory configured with the canvas
-  # keeps the option in its cache, whatever the default is now.
-  set(SKIFF_FRAMEWORK_CANVAS OFF CACHE BOOL "skiff.app with the canvas" FORCE)
-  # Nor a window: a native program here only writes the page out.
-  set(SKIFF_FRAMEWORK_WINDOW OFF CACHE BOOL "skiff.platform.window" FORCE)
+  # Two builds of one tree: the page (under Emscripten, and natively the
+  # program that writes it out), with no scene and no window; and the app in
+  # a window (CALCULATOR_WINDOW: the desktop, Android), drawn by skiff's
+  # scene with Skia. Forced either way: a build directory keeps what it was
+  # configured with in its cache.
+  option(CALCULATOR_WINDOW "The calculator as an app in a window (SDL, Skia)" OFF)
+  set(SKIFF_FRAMEWORK_CANVAS ${CALCULATOR_WINDOW} CACHE BOOL "skiff.app with the scene" FORCE)
+  set(SKIFF_FRAMEWORK_WINDOW ${CALCULATOR_WINDOW} CACHE BOOL "skiff.platform.window" FORCE)
   cme_find_package(skiff-framework 0.1.0 REQUIRED)
 
   add_library(calculator_ui STATIC)
   target_sources(calculator_ui PUBLIC FILE_SET CXX_MODULES FILES src/page.cc)
   target_link_libraries(calculator_ui PUBLIC calculator_engine skiff::framework)
 
+  if(CALCULATOR_WINDOW)
+    # The app in a window.
+    add_executable(calculator-window src/main_window.cc)
+    target_link_libraries(calculator-window PRIVATE calculator_ui skiff::app_window)
+    set_target_properties(calculator-window PROPERTIES CXX_STANDARD 26 CXX_SCAN_FOR_MODULES ON)
+  else()
   add_executable(calculator src/main.cc)
   target_link_libraries(calculator PRIVATE calculator_ui)
   skiff_app(calculator SHELL ${CMAKE_CURRENT_SOURCE_DIR}/web/index.html)
@@ -82,5 +90,6 @@ if(NOT CALCULATOR_ENGINE_ONLY)
     add_test(NAME page_written
       COMMAND ${CMAKE_COMMAND} -DPROGRAM=$<TARGET_FILE:calculator> -DOUT=${CMAKE_CURRENT_BINARY_DIR}/page-test
               -P ${CMAKE_CURRENT_SOURCE_DIR}/test/page_written.cmake)
+  endif()
   endif()
 endif()
