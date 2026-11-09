@@ -114,6 +114,15 @@ if(NOT CALCULATOR_ENGINE_ONLY)
   endif()
   cme_find_package(skiff-framework 0.1.0 REQUIRED)
 
+  # The calculator's own modules compiled with splice's room for constant
+  # evaluation, which splice says as a usage requirement of every module of
+  # the family (skiff's, through it): without it the engine's units made
+  # another std module than skiff's, and a target that imports both saw two
+  # ("Disagreement of the location of the 'std' module").
+  if(DEFINED SPLICE_CONSTEXPR_STEPS AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    target_compile_options(calculator_engine PUBLIC "-fconstexpr-steps=${SPLICE_CONSTEXPR_STEPS}")
+  endif()
+
   add_library(calculator_ui STATIC)
   target_sources(calculator_ui PUBLIC FILE_SET CXX_MODULES FILES src/page.cc)
   target_link_libraries(calculator_ui PUBLIC calculator_engine skiff::framework)
