@@ -9,10 +9,10 @@ const playwright = require('playwright');
 
 const url = process.argv[2];
 // The display's lines: the angles, a spacer, the formula, its result.
-// The formula: three lines of it, one a size, all the same text (one
-// shown as its length says): the first read.
+// The formula: one line a size, the one its length says shown (the
+// others not rendered, so not in innerText).
 const formula = (page) => page.locator('[data-view=Display] > :nth-child(3)').innerText();
-const below = (page) => page.locator('[data-view=Display] > :nth-child(6)').innerText();
+const below = (page) => page.locator('[data-view=Display] > :nth-child(4)').innerText();
 const click = (page, label) => page.getByRole('button', {name: label, exact: true}).first().click();
 const until = (page, line, text) => page.waitForFunction(([n, t]) => document.querySelector('[data-view=Display] > :nth-child(' + n + ')').innerText === t, [line, text]);
 

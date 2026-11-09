@@ -112,9 +112,6 @@ template <class... Keys> auto key_row(Keys... keys) {
   const auto characters = std::ranges::count_if(text, [](char ch) { return (static_cast<unsigned char>(ch) & 0xC0) != 0x80; });
   return characters <= 11 ? 0 : characters <= 15 ? 1 : 2;
 }
-template <std::size_t I> struct formula_sized {
-  [[nodiscard]] scene::Spec operator()(const calc &c) const { return scene::Spec{.visible = formula_size_index(c) == I}; }
-};
 // A line of one line only, never wrapped: what does not fit sticks out to
 // the left, and the display hides it.
 inline Text one_line(float size, scene::Colour colour) {
@@ -122,10 +119,12 @@ inline Text one_line(float size, scene::Colour colour) {
   text.setWrapped(false);
   return text;
 }
-template <std::size_t I> auto formula_line(float size) {
-  return spec_for<calc>(formula_sized<I>{},
-                        styled({.minHeight = 64.0f, .alignSelf = scene::align::kEnd},
-                               text_for<calc>([](const calc &c) { return formula_text(c); }, one_line(size, colour::kFormula))));
+// The formula at one size, in a column of its own: the sizes are
+// switched as the scientific panels are (switch_on, over columns).
+inline auto formula_line(float size) {
+  return column(vbox(0.0f, {.fillX = true}),
+                styled({.minHeight = 64.0f, .alignSelf = scene::align::kEnd},
+                       text_for<calc>([](const calc &c) { return formula_text(c); }, one_line(size, colour::kFormula))));
 }
 
 // The display: the formula, large, over its result; the angles read.
@@ -135,7 +134,8 @@ inline auto display_lines() {
                             styled({.alignSelf = scene::align::kStart},
                                    text_for<calc>([](const calc &c) { return std::string(angles(c)); }, Text("RAD", 14.0f, colour::kResult))),
                             styled({.grow = scene::axes::kY}, column(vbox(0.0f, {.fillX = true}))),
-                            formula_line<0>(52.0f), formula_line<1>(40.0f), formula_line<2>(30.0f),
+                            switch_on<calc>([](const calc &c) { return formula_size_index(c); }, formula_line(52.0f), formula_line(40.0f),
+                                            formula_line(30.0f)),
                             styled({.minHeight = 36.0f, .alignSelf = scene::align::kEnd},
                                    text_for<calc>([](const calc &c) { return result_text(c); }, one_line(30.0f, colour::kResult)))));
 }
