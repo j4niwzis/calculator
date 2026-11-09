@@ -106,7 +106,7 @@ template <class... Keys> auto key_row(Keys... keys) {
 // The display: the formula, large, over its result; the angles read.
 inline auto display_lines() {
   return SKIFF_NAMED(Display,
-                     column(vbox(8.0f, {.fillX = true, .grow = scene::axes::kY, .padding = {24.0f, 24.0f, 12.0f, 24.0f}}),
+                     column(vbox(8.0f, {.fillX = true, .minHeight = 180.0f, .padding = {24.0f, 24.0f, 12.0f, 24.0f}}),
                             styled({.alignSelf = scene::align::kStart},
                                    text_for<calc>([](const calc &c) { return std::string(angles(c)); }, Text("RAD", 14.0f, colour::kResult))),
                             styled({.grow = scene::axes::kY}, column(vbox(0.0f, {.fillX = true}))),
@@ -158,11 +158,14 @@ auto page() {
           handlers(on_key<digit>(), on_key<point>(), on_key<choose>(), on_key<put>(), on_key<of>(), on_key<after>(),
                    on_key<parentheses>(), on_key<equals>(), on_key<clear>(), on_key<backspace>(), on_key<switch_angles>(),
                    on_key<switch_inverse>(), on_key<expand>()),
+          // A phone's proportions however wide the window: at most 560
+          // across, in the middle; the keypad taking the height left.
           column(vbox(0.0f, {.fill = true, .background = colour::kBackground}),
-                 display_lines(),
-                 switch_on<calc>([](const calc &c) { return c.expanded ? std::size_t{1} : std::size_t{0}; }, scientific_folded(),
-                                 scientific_opened()),
-                 styled({.fillX = true, .grow = scene::axes::kY}, keypad()))));
+                 column(vbox(0.0f, {.fillX = true, .grow = scene::axes::kY, .maxWidth = 560.0f, .alignSelf = scene::align::kMiddle}),
+                        display_lines(),
+                        switch_on<calc>([](const calc &c) { return c.expanded ? std::size_t{1} : std::size_t{0}; }, scientific_folded(),
+                                        scientific_opened()),
+                        styled({.fillX = true, .grow = scene::axes::kY}, keypad())))));
 }
 
 using Model = skiff::ui::ModelOf<decltype(page())>;
