@@ -61,6 +61,11 @@ set(calculator_link "-static -fuse-ld=lld -stdlib=libc++ -rtlib=compiler-rt -unw
 set(CMAKE_EXE_LINKER_FLAGS_INIT "${calculator_link}")
 set(CMAKE_SHARED_LINKER_FLAGS_INIT "-fuse-ld=lld -stdlib=libc++ -rtlib=compiler-rt -unwindlib=libunwind")
 set(CMAKE_MODULE_LINKER_FLAGS_INIT "-fuse-ld=lld -stdlib=libc++ -rtlib=compiler-rt -unwindlib=libunwind")
+# import std: libc++'s module description, said rather than worked out --
+# CMake looks for it only where it has read which standard library this is
+# out of the compiler, and for this toolchain it read none ("Only libc++
+# and libstdc++ are supported").
+set(CMAKE_CXX_STDLIB_MODULES_JSON "${CALCULATOR_SYSROOT}/usr/lib/libc++.modules.json")
 # Static libraries only: a package that could build either builds this one.
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 
