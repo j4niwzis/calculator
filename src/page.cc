@@ -4,6 +4,8 @@
 // its handler presses it on the calculator. The keyboard presses the same
 // buttons (web/index.html).
 module;
+// Views named on the page (data-view): the page has no scene.
+#define SKIFF_NAMED_BASE ::skiff::web::Named
 #include <skiff/named.h>
 export module calculator.page;
 
@@ -50,8 +52,7 @@ template <class... Keys> auto key_row(Keys... keys) {
   return row(hbox(10.0f, {.fillX = true, .autoSize = scene::axes::kY}), std::move(keys)...);
 }
 
-// The calculator: named outside the state that keeps it, as skiff's site
-// names its parts.
+// The calculator, named on the page around the state that keeps it.
 auto page() {
   return SKIFF_NAMED(Calculator,
       state<calc>(
@@ -93,7 +94,6 @@ html,body{margin:0;min-height:100%;background:#0f1419}
 // what is written into the head of the page.
 struct Hooks {
   [[nodiscard]] std::string_view stylesheet() const { return kCss; }
-  [[nodiscard]] scene::Colour paper() const { return 0xff0f1419u; }
   [[nodiscard]] std::string_view head() const {
     return "<title>Calculator</title>\n"
            "<meta name=\"description\" content=\"A calculator, written in C++ with skiff.\">\n";

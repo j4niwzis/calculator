@@ -54,9 +54,9 @@ if(NOT CALCULATOR_ENGINE_ONLY)
     GITHUB_REPOSITORY j4niwzis/skiff-framework
     GIT_TAG a90c69292bddceef979b735c48ac18ab5b088c87
     VERSION 0.1.0)
-  # The canvas feature, as skiff's own site builds it: the configuration the
-  # framework is checked in, in a browser and natively.
-  cme_find_package(skiff-framework 0.1.0 COMPONENTS canvas REQUIRED)
+  # The page alone: the browser's own elements, no canvas (and none of
+  # skiff's scene).
+  cme_find_package(skiff-framework 0.1.0 REQUIRED)
 
   add_library(calculator_ui STATIC)
   target_sources(calculator_ui PUBLIC FILE_SET CXX_MODULES FILES src/page.cc)
