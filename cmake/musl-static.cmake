@@ -43,8 +43,15 @@ set(CMAKE_RANLIB "${calculator_llvm}/llvm-ranlib")
 set(CMAKE_NM "${calculator_llvm}/llvm-nm")
 set(CMAKE_LINKER_TYPE LLD)
 
-set(calculator_common "-resource-dir=${CALCULATOR_SYSROOT}/clang-resource -flto=full")
+set(calculator_common "-resource-dir=${CALCULATOR_SYSROOT}/clang-resource")
 set(CMAKE_C_FLAGS_INIT "${calculator_common}")
+# Bitcode in the release configuration only: CMake's compiler checks and
+# feature tests are compiled to machine code -- compiled as bitcode, CMake
+# read no standard library out of its identification ("Only libc++ and
+# libstdc++ are supported", for import std) -- while the calculator and
+# every port cmake-everywhere builds take the configuration's flags.
+set(CMAKE_C_FLAGS_RELEASE_INIT "-O3 -DNDEBUG -flto=full")
+set(CMAKE_CXX_FLAGS_RELEASE_INIT "-O3 -DNDEBUG -flto=full")
 set(CMAKE_ASM_FLAGS_INIT "-resource-dir=${CALCULATOR_SYSROOT}/clang-resource")
 set(CMAKE_CXX_FLAGS_INIT "${calculator_common} -stdlib=libc++")
 set(calculator_link "-static -fuse-ld=lld -stdlib=libc++ -rtlib=compiler-rt -unwindlib=libunwind -Wl,--lto-O3")
