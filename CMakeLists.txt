@@ -77,7 +77,7 @@ if(NOT CALCULATOR_ENGINE_ONLY)
   # text kinds, the routing that carries a root's own scope).
   cme_declare_port(NAME skiff PROVIDES skiff
     GITHUB_REPOSITORY j4niwzis/skiff
-    GIT_TAG a94b851a06f08b3c74f9ad318e0482e3ae670338
+    GIT_TAG 74baf7b61a812ed24c932d253af523d32b5c60cb
     VERSION 0.1.0)
   # skiff-widgets ahead of the framework's pin: its SendButton takes a Theme on
   # both backends, which the calculator's keys are drawn by.
