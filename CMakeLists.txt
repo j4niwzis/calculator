@@ -50,6 +50,12 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
 endif()
 
 if(NOT CALCULATOR_ENGINE_ONLY)
+  # skiff at its own head, as skiff-widgets' is built against it (the scene's
+  # text kinds, the routing that carries a root's own scope).
+  cme_declare_port(NAME skiff PROVIDES skiff
+    GITHUB_REPOSITORY j4niwzis/skiff
+    GIT_TAG d95170f7d0dcc163e8257c3a9969aa58f8f32ae0
+    VERSION 0.1.0)
   # skiff-widgets ahead of the framework's pin: its SendButton takes a Theme on
   # both backends, which the calculator's keys are drawn by.
   cme_declare_port(NAME skiff-widgets PROVIDES skiff-widgets skiff_widgets
