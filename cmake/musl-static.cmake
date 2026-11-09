@@ -53,7 +53,10 @@ set(CMAKE_C_FLAGS_INIT "${calculator_common}")
 set(CMAKE_C_FLAGS_RELEASE_INIT "-O3 -DNDEBUG -flto=full")
 set(CMAKE_CXX_FLAGS_RELEASE_INIT "-O3 -DNDEBUG -flto=full")
 set(CMAKE_ASM_FLAGS_INIT "-resource-dir=${CALCULATOR_SYSROOT}/clang-resource")
-set(CMAKE_CXX_FLAGS_INIT "${calculator_common} -stdlib=libc++")
+# libc++'s headers the sysroot's, only: clang looks in its own install's
+# include/c++/v1 before the sysroot, and a machine with libc++-23-dev has the
+# host's there (glibc's locale, not musl's) -- std.cppm then did not compile.
+set(CMAKE_CXX_FLAGS_INIT "${calculator_common} -stdlib=libc++ -nostdinc++ -isystem ${CALCULATOR_SYSROOT}/usr/include/c++/v1")
 set(calculator_link "-static -fuse-ld=lld -stdlib=libc++ -rtlib=compiler-rt -unwindlib=libunwind -Wl,--lto-O3")
 # The ForceInline plugin is not here: every feature test CMake and the
 # ports link would run it -- the calculator's own link loads it
