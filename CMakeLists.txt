@@ -22,12 +22,27 @@ endif()
 
 project(calculator VERSION 1.0.0 LANGUAGES C CXX)
 
+# On Android (the source-built toolchain mux uses): SDL's NativeActivity
+# fork, said before any port is declared: cmake-everywhere reads its registry at the
+# first declaration, and the first to declare a port is the one read. That toolchain says Linux for
+# CMAKE_SYSTEM_NAME and gives MANDK_ROOT: an Android build is said so here,
+# before any port reads ANDROID -- else the fork was declared after the
+# registry's SDL had been, and skiff-framework took the build for desktop
+# Linux.
+if(MANDK_ROOT AND NOT ANDROID)
+  set(ANDROID TRUE)
+endif()
+if(ANDROID AND NOT CALCULATOR_ENGINE_ONLY)
+  include(${CMAKE_CURRENT_LIST_DIR}/cmake/android.cmake)
+endif()
+
 add_library(calculator_engine STATIC)
 target_sources(calculator_engine PUBLIC FILE_SET CXX_MODULES FILES src/number.cc src/real.cc src/symbolic.cc src/engine.cc)
 target_compile_features(calculator_engine PUBLIC cxx_std_26)
 
 # The tests: googletest, as C++ modules (import gtest), as skiff's own.
-if(NOT CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
+# Not where they cannot run: the browser, Android.
+if(NOT CMAKE_SYSTEM_NAME STREQUAL "Emscripten" AND NOT ANDROID)
   include(${CMAKE_CURRENT_LIST_DIR}/cmake/CPM.cmake)
   CPMAddPackage(
     NAME googletest_modules
@@ -50,19 +65,6 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
 endif()
 
 if(NOT CALCULATOR_ENGINE_ONLY)
-  # On Android (the source-built toolchain mux uses): SDL's NativeActivity
-  # fork, said before any port is declared: cmake-everywhere reads its registry at the
-  # first declaration, and the first to declare a port is the one read. That toolchain says Linux for
-  # CMAKE_SYSTEM_NAME and gives MANDK_ROOT: an Android build is said so here,
-  # before any port reads ANDROID -- else the fork was declared after the
-  # registry's SDL had been, and skiff-framework took the build for desktop
-  # Linux.
-  if(MANDK_ROOT AND NOT ANDROID)
-    set(ANDROID TRUE)
-  endif()
-  if(ANDROID)
-    include(${CMAKE_CURRENT_LIST_DIR}/cmake/android.cmake)
-  endif()
   # skiff at its own head, as skiff-widgets' is built against it (the scene's
   # text kinds, the routing that carries a root's own scope).
   cme_declare_port(NAME skiff PROVIDES skiff
