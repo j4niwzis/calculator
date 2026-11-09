@@ -30,37 +30,38 @@ template <class Key> auto on_key() {
 }
 // A key's button: its label, and the key it sends.
 template <class Key> auto key_button(std::string label, Key key) {
-  return SendButton<Key>(std::move(label), std::move(key), {.grow = scene::axes::kX, .height = 64.0f});
+  return SendButton<Key>(std::move(label), std::move(key), {.height = 64.0f, .grow = scene::axes::kX});
 }
 
 // The display: what is being worked out, over the number.
 inline auto display_lines() {
   return SKIFF_NAMED(Display,
                      column(vbox(4.0f, {.fillX = true, .autoSize = scene::axes::kY, .padding = {12.0f, 8.0f, 12.0f, 8.0f}}),
-                            styled({.alignSelf = scene::align::kEnd, .minHeight = 22.0f},
+                            styled({.minHeight = 22.0f, .alignSelf = scene::align::kEnd},
                                    text_for<calc>([](const calc &c) { return expression(c); }, Text(std::string(), 18.0f, colour::kDim))),
-                            styled({.alignSelf = scene::align::kEnd, .minHeight = 52.0f},
+                            styled({.minHeight = 52.0f, .alignSelf = scene::align::kEnd},
                                    text_for<calc>([](const calc &c) { return display(c); }, Text("0", 44.0f, colour::kInk, true)))));
 }
 
-// A row of keys; the first row's are the functions (C, backspace, %).
+// A row of keys. Not named (SKIFF_NAMED): a named view between a key and
+// the state whose handlers take it keeps the key's event from reaching
+// them.
 template <class... Keys> auto key_row(Keys... keys) {
-  return SKIFF_NAMED(KeyRow, row(hbox(10.0f, {.fillX = true, .autoSize = scene::axes::kY}), std::move(keys)...));
-}
-template <class... Keys> auto function_row(Keys... keys) {
-  return SKIFF_NAMED(FunctionRow, row(hbox(10.0f, {.fillX = true, .autoSize = scene::axes::kY}), std::move(keys)...));
+  return row(hbox(10.0f, {.fillX = true, .autoSize = scene::axes::kY}), std::move(keys)...);
 }
 
+// The calculator: named outside the state that keeps it, as skiff's site
+// names its parts.
 auto page() {
-  return state<calc>(
-      handlers(on_key<digit>(), on_key<point>(), on_key<choose>(), on_key<equals>(), on_key<clear>(), on_key<backspace>(),
-               on_key<negate>(), on_key<percent>()),
-      SKIFF_NAMED(Calculator,
+  return SKIFF_NAMED(Calculator,
+      state<calc>(
+          handlers(on_key<digit>(), on_key<point>(), on_key<choose>(), on_key<equals>(), on_key<clear>(), on_key<backspace>(),
+                   on_key<negate>(), on_key<percent>()),
                   column(vbox(10.0f, {.fillX = true, .autoSize = scene::axes::kY, .maxWidth = 380.0f,
-                                      .padding = {16.0f, 16.0f, 16.0f, 16.0f}, .cornerRadius = 20.0f, .background = colour::kBody,
-                                      .alignSelf = scene::align::kMiddle}),
+                                      .padding = {16.0f, 16.0f, 16.0f, 16.0f}, .cornerRadius = 20.0f,
+                                      .alignSelf = scene::align::kMiddle, .background = colour::kBody}),
                          display_lines(),
-                         function_row(key_button("C", clear{}), key_button("⌫", backspace{}), key_button("%", percent{}),
+                         key_row(key_button("C", clear{}), key_button("⌫", backspace{}), key_button("%", percent{}),
                                       key_button("÷", choose{op::divide{}})),
                          key_row(key_button("7", digit{7}), key_button("8", digit{8}), key_button("9", digit{9}),
                                  key_button("×", choose{op::multiply{}})),
@@ -79,11 +80,10 @@ using Model = skiff::ui::ModelOf<decltype(page())>;
 inline constexpr std::string_view kCss = R"(
 html,body{margin:0;min-height:100%;background:#0f1419}
 #skiff{font:16px/1.3 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#e8eef2;min-height:100vh;display:flex;flex-direction:column;justify-content:center;padding:16px;box-sizing:border-box}
-[data-view=Calculator]{width:100%;box-shadow:0 20px 50px rgba(0,0,0,.45)}
+[data-view=Calculator]{width:100%;max-width:380px;margin:0 auto;border-radius:20px;box-shadow:0 20px 50px rgba(0,0,0,.45)}
 [data-view=Display]>*{text-align:right;word-break:break-all;max-width:100%}
-[data-view=KeyRow] .skiff-button,[data-view=FunctionRow] .skiff-button{flex:1 1 0;min-width:0;height:64px;border:0!important;border-radius:14px!important;font:500 24px/1 inherit!important;background:#2a3540!important;color:#e8eef2!important;cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent;transition:filter .08s}
-[data-view=FunctionRow] .skiff-button{background:#46545f!important}
-[data-view=KeyRow] .skiff-button:last-child,[data-view=FunctionRow] .skiff-button:last-child{background:#e18a32!important;color:#fff!important}
+[data-view=Calculator] .skiff-button{flex:1 1 0;min-width:0;height:64px;border:0!important;border-radius:14px!important;font:500 24px/1 inherit!important;background:#2a3540!important;color:#e8eef2!important;cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent;transition:filter .08s}
+[data-view=Calculator] .skiff-button:last-child{background:#e18a32!important;color:#fff!important}
 .skiff-button:hover{filter:brightness(1.15)}
 .skiff-button:active,.skiff-button.pressed{filter:brightness(.85)}
 .skiff-button:focus-visible{outline:2px solid #8fd3e0;outline-offset:2px}
