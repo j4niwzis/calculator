@@ -3,9 +3,15 @@
 // its numbers are written -- plain C++, no UI. The page (calculator.page)
 // shows a calc and sends it keys; the tests (test/engine.cc) press the keys
 // themselves.
+//
+// Exact: every number is a rational (calculator.number), and every key
+// keeps it one, so every answer is exact; only how many of its digits are
+// shown is limited, and each digit shown is right -- one that goes on is
+// cut, never rounded, and followed by an ellipsis.
 export module calculator.engine;
 
 import std;
+export import calculator.number;
 
 export namespace calculator {
 
@@ -45,7 +51,8 @@ struct division_by_zero : std::exception {
   [[nodiscard]] const char *what() const noexcept override { return "Cannot divide by zero"; }
   friend bool operator==(const division_by_zero &, const division_by_zero &) { return true; }
 };
-// A result too large for a double (or no number at all).
+// A result too large to keep: its numerator and denominator together over
+// kMaxBits (repeated squaring gets there in a few presses).
 struct out_of_range : std::exception {
   [[nodiscard]] const char *what() const noexcept override { return "Out of range"; }
   friend bool operator==(const out_of_range &, const out_of_range &) { return true; }
@@ -56,56 +63,96 @@ using failure = std::variant<division_by_zero, out_of_range>;
   return std::visit([](const auto &one) { return std::string_view(one.what()); }, what);
 }
 
-// A result as kept: a finite number, never a negative zero.
-[[nodiscard]] inline double checked(double v) {
-  if (!std::isfinite(v)) throw out_of_range{};
-  return v == 0.0 ? 0.0 : v;
+// The most bits a result keeps: some 39,000 decimal digits.
+inline constexpr std::size_t kMaxBits = std::size_t{1} << 17;
+
+// A result as kept: one not too large.
+[[nodiscard]] inline rational checked(rational v) {
+  if (v.bits() > kMaxBits) throw out_of_range{};
+  return v;
 }
-[[nodiscard]] inline double apply(op::add, double a, double b) { return checked(a + b); }
-[[nodiscard]] inline double apply(op::subtract, double a, double b) { return checked(a - b); }
-[[nodiscard]] inline double apply(op::multiply, double a, double b) { return checked(a * b); }
-[[nodiscard]] inline double apply(op::divide, double a, double b) {
-  if (b == 0.0) throw division_by_zero{};
+[[nodiscard]] inline rational apply(op::add, const rational &a, const rational &b) { return checked(a + b); }
+[[nodiscard]] inline rational apply(op::subtract, const rational &a, const rational &b) { return checked(a - b); }
+[[nodiscard]] inline rational apply(op::multiply, const rational &a, const rational &b) { return checked(a * b); }
+[[nodiscard]] inline rational apply(op::divide, const rational &a, const rational &b) {
+  if (b.zero()) throw division_by_zero{};
   return checked(a / b);
 }
-[[nodiscard]] inline double apply(const operation &which, double a, double b) {
+[[nodiscard]] inline rational apply(const operation &which, const rational &a, const rational &b) {
   return std::visit([&](auto one) { return apply(one, a, b); }, which);
 }
 
 // What `%` makes of the number typed, by the operation it is the right side
 // of: beside + or -, that percent of the left side (200 + 5% is 200 + 10);
 // beside * or /, a hundredth of it (200 * 5% is 200 * 0.05).
-[[nodiscard]] inline double percent_of(op::add, double left, double typed) { return left * typed / 100.0; }
-[[nodiscard]] inline double percent_of(op::subtract, double left, double typed) { return left * typed / 100.0; }
-[[nodiscard]] inline double percent_of(op::multiply, double, double typed) { return typed / 100.0; }
-[[nodiscard]] inline double percent_of(op::divide, double, double typed) { return typed / 100.0; }
+[[nodiscard]] inline rational percent_of(op::add, const rational &left, const rational &typed) { return left * typed / rational(100); }
+[[nodiscard]] inline rational percent_of(op::subtract, const rational &left, const rational &typed) { return left * typed / rational(100); }
+[[nodiscard]] inline rational percent_of(op::multiply, const rational &, const rational &typed) { return typed / rational(100); }
+[[nodiscard]] inline rational percent_of(op::divide, const rational &, const rational &typed) { return typed / rational(100); }
 
 // ---- numbers as written -----------------------------------------------------
 
-// The most digits an entry takes.
-inline constexpr std::ptrdiff_t kMaxDigits = 15;
+// The most digits an entry takes, and the most significant digits a result
+// is shown with.
+inline constexpr std::ptrdiff_t kMaxDigits = 20;
+inline constexpr std::size_t kShownDigits = 20;
+// Below 1, the most zeros after the point before an exponent is used.
+inline constexpr std::size_t kMaxLeadingZeros = 9;
+// After a digit that goes on: there are more, none of them shown.
+inline constexpr std::string_view kMore = "…";
 
-// An entry's number. An entry is only ever made here, so it always reads.
-[[nodiscard]] inline double value_of(std::string_view entry) {
-  double v = 0.0;
-  std::from_chars(entry.data(), entry.data() + entry.size(), v);
-  return v;
-}
 [[nodiscard]] inline std::ptrdiff_t digits_in(std::string_view entry) {
   return std::ranges::count_if(entry, [](char c) { return c >= '0' && c <= '9'; });
 }
 
-// A result as an entry: 12 significant digits, what a double holds of the
-// decimal it was meant to be (0.1 + 0.2 is 0.3); an exponent where the
-// number is too large or small for them, written 1e16 and 1e-7.
-[[nodiscard]] inline std::string written(double v) {
-  const std::string text = std::format("{:.12g}", v);
-  const std::size_t e = text.find('e');
-  if (e == std::string::npos) return text;
-  const std::size_t from = e + 1 + (text[e + 1] == '+' ? 1 : 0);
-  int exponent = 0;
-  std::from_chars(text.data() + from, text.data() + text.size(), exponent);
-  return std::format("{}e{}", std::string_view(text).substr(0, e), exponent);
+// Digits as a mantissa: the first, a point, the rest without the zeros they
+// end in (where nothing comes after them).
+[[nodiscard]] inline std::string mantissa(std::string digits, bool exact) {
+  if (exact) {
+    const std::size_t last = digits.find_last_not_of('0');
+    digits.resize(last == std::string::npos ? 1 : last + 1);
+  }
+  return digits.size() == 1 ? digits : std::format("{}.{}", digits.front(), std::string_view(digits).substr(1));
+}
+
+// A result as shown: exact where it ends within kShownDigits significant
+// digits (0.3, 1,234.5); else its first kShownDigits digits, cut, and an
+// ellipsis (0.33333333333333333333…). An exponent where the whole part
+// has more digits than that (1e30, 1.2345…e40), or the number is below
+// 10^-kMaxLeadingZeros (1e-30).
+[[nodiscard]] inline std::string written(const rational &q) {
+  if (q.zero()) return "0";
+  const std::string_view sign = q.negative() ? "-" : "";
+  const natural &den = q.denominator();
+  auto [whole, rest] = divmod(q.numerator(), den);
+  // The fraction's next digit.
+  const auto next = [&] {
+    rest.multiply_add(10, 0);
+    auto [d, r] = divmod(rest, den);
+    rest = std::move(r);
+    return static_cast<char>('0' + d.low());
+  };
+  if (!whole.zero()) {
+    const std::string digits = whole.decimal();
+    if (digits.size() > kShownDigits) {
+      const bool exact = rest.zero() && digits.find_first_not_of('0', kShownDigits) == std::string::npos;
+      return std::format("{}{}{}e{}", sign, mantissa(digits.substr(0, kShownDigits), exact), exact ? "" : kMore, digits.size() - 1);
+    }
+    std::string fraction;
+    while (digits.size() + fraction.size() < kShownDigits && !rest.zero()) fraction += next();
+    const bool exact = rest.zero();
+    return std::format("{}{}{}{}{}", sign, digits, fraction.empty() ? "" : ".", fraction, exact ? "" : kMore);
+  }
+  // Below 1: the zeros after the point, then the significant digits.
+  std::size_t zeros = 0;
+  char first = next();
+  for (; first == '0'; first = next()) ++zeros;
+  std::string significant(1, first);
+  while (significant.size() < kShownDigits && !rest.zero()) significant += next();
+  const bool exact = rest.zero();
+  if (zeros > kMaxLeadingZeros)
+    return std::format("{}{}{}e-{}", sign, mantissa(significant, exact), exact ? "" : kMore, zeros + 1);
+  return std::format("{}0.{}{}{}", sign, std::string(zeros, '0'), significant, exact ? "" : kMore);
 }
 
 // Digits grouped by thousands from the right: 1234567 -> 1,234,567.
@@ -120,26 +167,28 @@ inline constexpr std::ptrdiff_t kMaxDigits = 15;
   std::ranges::reverse(out);
   return out;
 }
-// An entry as shown: its whole part grouped by thousands, the rest (the
-// fraction, an exponent) as typed.
+// A number as shown: its whole part grouped by thousands, the rest (the
+// fraction, an ellipsis, an exponent) as it is.
 [[nodiscard]] inline std::string grouped(std::string_view entry) {
   const bool negative = entry.starts_with('-');
   const std::string_view body = entry.substr(negative ? 1 : 0);
-  const std::size_t whole = std::min(body.find_first_of(".e"), body.size());
+  const std::size_t whole = std::min(body.find_first_not_of("0123456789"), body.size());
   return std::format("{}{}{}", negative ? "-" : "", grouped_digits(body.substr(0, whole)), body.substr(whole));
 }
 
 // ---- the calculator ---------------------------------------------------------
 
 struct calc {
-  // The number typed, or the last result: as an entry (written()).
+  // The number shown: as typed, or the last result as written().
   std::string entry = "0";
+  // Its value, exactly (a result shown cut is kept whole here).
+  rational value;
   // The left side and the operation waiting for the right side.
-  std::optional<double> left;
+  std::optional<rational> left;
   std::optional<operation> pending;
   // What `=` did last, and its right side: `=` again does it again.
   std::optional<operation> repeat_op;
-  double repeat_right = 0.0;
+  rational repeat_right;
   // The next digit starts a new entry (a result, or nothing typed yet).
   bool fresh = true;
   // A right side was given since the operation was chosen.
@@ -185,20 +234,30 @@ template <class Work> [[nodiscard]] calc guarded(Work work) {
     return failing(caught);
   }
 }
+// A result shown, and kept exactly.
+inline void show(calc &c, rational result) {
+  c.entry = written(result);
+  c.value = std::move(result);
+}
+// The entry edited by typing: its value read again.
+inline void typed(calc &c, std::string entry) {
+  c.value = rational::from_decimal(entry);
+  c.entry = std::move(entry);
+}
 
 [[nodiscard]] inline calc press(calc c, digit d) {
   if (c.failed) c = calc{};
   if (c.fresh && !c.pending) c.expression.clear();
-  const char typed = static_cast<char>('0' + std::clamp(d.value, 0, 9));
+  const char typed_now = static_cast<char>('0' + std::clamp(d.value, 0, 9));
   if (c.fresh) {
-    c.entry = std::string(1, typed);
+    typed(c, std::string(1, typed_now));
     c.fresh = false;
   } else if (c.entry == "0") {
-    c.entry = std::string(1, typed);
+    typed(c, std::string(1, typed_now));
   } else if (c.entry == "-0") {
-    c.entry = std::string{'-', typed};
+    typed(c, std::string{'-', typed_now});
   } else if (digits_in(c.entry) < kMaxDigits) {
-    c.entry += typed;
+    typed(c, c.entry + typed_now);
   }
   c.given = true;
   return c;
@@ -208,10 +267,10 @@ template <class Work> [[nodiscard]] calc guarded(Work work) {
   if (c.failed) c = calc{};
   if (c.fresh && !c.pending) c.expression.clear();
   if (c.fresh) {
-    c.entry = "0.";
+    typed(c, "0.");
     c.fresh = false;
   } else if (!c.entry.contains('.')) {
-    c.entry += '.';
+    typed(c, c.entry + '.');
   }
   c.given = true;
   return c;
@@ -220,11 +279,11 @@ template <class Work> [[nodiscard]] calc guarded(Work work) {
 // An operation chosen: what was waiting worked out first (it may throw).
 [[nodiscard]] inline calc chosen_on(calc c, choose chosen) {
   if (c.pending && c.given) {
-    const double result = apply(*c.pending, *c.left, value_of(c.entry));
+    rational result = apply(*c.pending, *c.left, c.value);
     c.left = result;
-    c.entry = written(result);
+    show(c, std::move(result));
   } else if (!c.pending) {
-    c.left = value_of(c.entry);
+    c.left = c.value;
   }
   c.pending = chosen.which;
   c.expression = std::format("{} {}", grouped(written(*c.left)), symbol(chosen.which));
@@ -241,20 +300,20 @@ template <class Work> [[nodiscard]] calc guarded(Work work) {
 
 // `=`: the operation waiting, or the last one again (it may throw).
 [[nodiscard]] inline calc equals_on(calc c) {
-  double left = 0.0;
+  rational left;
   if (c.pending) {
     left = *c.left;
     c.repeat_op = c.pending;
-    c.repeat_right = c.given ? value_of(c.entry) : left;
+    c.repeat_right = c.given ? c.value : left;
   } else if (c.repeat_op) {
-    left = value_of(c.entry);
+    left = c.value;
   } else {
     c.fresh = true;
     return c;
   }
-  const double result = apply(*c.repeat_op, left, c.repeat_right);
+  rational result = apply(*c.repeat_op, left, c.repeat_right);
   c.expression = std::format("{} {} {} =", grouped(written(left)), symbol(*c.repeat_op), grouped(written(c.repeat_right)));
-  c.entry = written(result);
+  show(c, std::move(result));
   c.left.reset();
   c.pending.reset();
   c.fresh = true;
@@ -271,7 +330,7 @@ template <class Work> [[nodiscard]] calc guarded(Work work) {
 
 [[nodiscard]] inline calc press(calc c, clear_entry) {
   if (c.failed) return calc{};
-  c.entry = "0";
+  typed(c, "0");
   c.fresh = true;
   c.given = c.pending.has_value();
   return c;
@@ -280,15 +339,16 @@ template <class Work> [[nodiscard]] calc guarded(Work work) {
 [[nodiscard]] inline calc press(calc c, backspace) {
   if (c.failed) return calc{};
   if (c.fresh) return c;
-  c.entry.pop_back();
-  if (c.entry.empty() || c.entry == "-") c.entry = "0";
+  std::string entry = c.entry;
+  entry.pop_back();
+  typed(c, entry.empty() || entry == "-" ? std::string("0") : std::move(entry));
   return c;
 }
 
 [[nodiscard]] inline calc press(calc c, negate) {
   if (c.failed) return c;
   if (c.pending && !c.given) {
-    c.entry = "-0";
+    typed(c, "-0");
     c.fresh = false;
     c.given = true;
     return c;
@@ -297,6 +357,7 @@ template <class Work> [[nodiscard]] calc guarded(Work work) {
     c.entry.erase(0, 1);
   else
     c.entry.insert(0, 1, '-');
+  c.value = -c.value;
   if (c.entry == "-0") c.fresh = false;
   if (c.pending) c.given = true;
   return c;
@@ -305,10 +366,9 @@ template <class Work> [[nodiscard]] calc guarded(Work work) {
 [[nodiscard]] inline calc press(calc c, percent) {
   if (c.failed) return c;
   return guarded([&] {
-    const double typed = value_of(c.entry);
-    const double made = c.pending ? std::visit([&](auto one) { return percent_of(one, *c.left, typed); }, *c.pending)
-                                  : typed / 100.0;
-    c.entry = written(checked(made));
+    rational made = c.pending ? std::visit([&](auto one) { return percent_of(one, *c.left, c.value); }, *c.pending)
+                              : c.value / rational(100);
+    show(c, checked(std::move(made)));
     c.fresh = true;
     if (c.pending) c.given = true;
     return std::move(c);

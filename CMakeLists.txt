@@ -23,7 +23,7 @@ endif()
 project(calculator VERSION 1.0.0 LANGUAGES CXX)
 
 add_library(calculator_engine STATIC)
-target_sources(calculator_engine PUBLIC FILE_SET CXX_MODULES FILES src/engine.cc)
+target_sources(calculator_engine PUBLIC FILE_SET CXX_MODULES FILES src/number.cc src/engine.cc)
 target_compile_features(calculator_engine PUBLIC cxx_std_26)
 
 # The tests: googletest, as C++ modules (import gtest), as skiff's own.

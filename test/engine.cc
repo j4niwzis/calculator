@@ -64,9 +64,12 @@ TEST(Expression, ANewNumberAfterEqualsStartsOver) {
   EXPECT_EQ(expression(keys(digit{1}, plus, digit{1}, equals{}, digit{4})), "");
 }
 
-TEST(Failures, DivisionByZeroThrows) { EXPECT_THROW((void)apply(op::divide{}, 1.0, 0.0), division_by_zero); }
+TEST(Failures, DivisionByZeroThrows) { EXPECT_THROW((void)apply(op::divide{}, rational(1), rational(0)), division_by_zero); }
 
-TEST(Failures, AResultTooLargeThrows) { EXPECT_THROW((void)apply(op::multiply{}, 1e308, 10.0), out_of_range); }
+TEST(Failures, AResultTooLargeThrows) {
+  const rational big = rational::from_decimal("1" + std::string(20000, '0'));
+  EXPECT_THROW((void)apply(op::multiply{}, big, big), out_of_range);
+}
 
 TEST(Failures, WhatEachSays) {
   EXPECT_STREQ(division_by_zero{}.what(), "Cannot divide by zero");
@@ -93,7 +96,7 @@ TEST(Entry, ALeadingPoint) { EXPECT_EQ(display(keys(point{}, digit{5})), "0.5");
 
 TEST(Entry, ASecondPointIsIgnored) { EXPECT_EQ(display(type("1..2")), "1.2"); }
 
-TEST(Entry, AtMostFifteenDigits) { EXPECT_EQ(display(type("1111111111111111111")), "111,111,111,111,111"); }
+TEST(Entry, AtMostTwentyDigits) { EXPECT_EQ(display(type(std::string(25, '1'))), "11,111,111,111,111,111,111"); }
 
 TEST(Entry, LeadingZerosAreDropped) { EXPECT_EQ(display(type("007")), "7"); }
 
@@ -129,11 +132,57 @@ TEST(Editing, ClearEntryKeepsTheLeftSide) {
 
 TEST(Editing, ClearClearsEverything) { EXPECT_EQ(keys(digit{5}, plus, digit{3}, clear{}), calc{}); }
 
-TEST(Written, TwelveSignificantDigits) { EXPECT_EQ(written(1.0 / 3.0), "0.333333333333"); }
+rational ten_to(std::size_t n) { return rational::from_decimal("1" + std::string(n, '0')); }
 
-TEST(Written, ALargeExponent) { EXPECT_EQ(written(1e16), "1e16"); }
+TEST(Written, ARepeatingDecimalIsCutNotRounded) {
+  EXPECT_EQ(written(rational(1) / rational(3)), "0.33333333333333333333\u2026");
+  EXPECT_EQ(written(rational(2) / rational(3)), "0.66666666666666666666\u2026");
+}
 
-TEST(Written, ASmallExponent) { EXPECT_EQ(written(1e-7), "1e-7"); }
+TEST(Written, ATerminatingDecimalIsExact) { EXPECT_EQ(written(rational(1) / rational(8)), "0.125"); }
 
-TEST(Written, NoNegativeZero) { EXPECT_EQ(written(apply(op::multiply{}, -1.0, 0.0)), "0"); }
+TEST(Written, ALargeExactPower) { EXPECT_EQ(written(ten_to(30)), "1e30"); }
+
+TEST(Written, ALargeNumberCut) {
+  EXPECT_EQ(written(rational::from_decimal("123456789012345678901234567")), "1.2345678901234567890\u2026e26");
+}
+
+TEST(Written, SmallWithoutAnExponent) { EXPECT_EQ(written(rational(1) / ten_to(7)), "0.0000001"); }
+
+TEST(Written, ASmallExponent) { EXPECT_EQ(written(rational(1) / ten_to(30)), "1e-30"); }
+
+TEST(Written, NoNegativeZero) { EXPECT_EQ(written(apply(op::multiply{}, rational(-1), rational(0))), "0"); }
+
+TEST(Exact, AHugeNumberPlusOneMinusItself) {
+  EXPECT_EQ(written(apply(op::subtract{}, apply(op::add{}, ten_to(100), rational(1)), ten_to(100))), "1");
+}
+
+TEST(Exact, AThirdTimesThreeIsOne) { EXPECT_EQ(display(keys(digit{1}, over, digit{3}, times, digit{3}, equals{})), "1"); }
+
+TEST(Exact, AThirdShownCut) { EXPECT_EQ(display(keys(digit{1}, over, digit{3}, equals{})), "0.33333333333333333333\u2026"); }
+
+TEST(Exact, AResultKeptWholeThoughShownCut) {
+  // 1/3 shown cut, kept whole: x 3 again is 1, not 0.99999...
+  EXPECT_EQ(display(keys(digit{1}, over, digit{3}, equals{}, times, digit{3}, equals{})), "1");
+}
+
+TEST(Exact, ALongProduct) {
+  EXPECT_EQ(display(press(type(press(type("123456789"), times), "987654321"), equals{})), "121,932,631,112,635,269");
+}
+
+TEST(Number, LongDivision) {
+  const natural a = natural::from_decimal("123456789012345678901234567890");
+  const natural b = natural::from_decimal("98765432109876543210");
+  const natural r = natural::from_decimal("12345");
+  const auto [q, rest] = divmod(a * b + r, b);
+  EXPECT_EQ(q.decimal(), a.decimal());
+  EXPECT_EQ(rest.decimal(), "12345");
+}
+
+TEST(Number, DecimalRoundTrip) {
+  const std::string digits = "340282366920938463463374607431768211456";
+  EXPECT_EQ(natural::from_decimal(digits).decimal(), digits);
+}
+
+TEST(Number, LowestTerms) { EXPECT_EQ(rational::from_decimal("0.50"), rational(1) / rational(2)); }
 }  // namespace

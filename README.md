@@ -26,18 +26,27 @@ How it works things out:
   (`50 × 10 % =` is 5).
 - **Choosing another operation** before typing the right side replaces the
   first one: `9 + − 4 =` is 5.
-- **Results** are rounded to 12 significant digits, so `0.1 + 0.2` is `0.3`.
-  Very large or small results use an exponent (`1e16`, `1e-7`).
-- **Entries** take up to 15 digits. The display groups them by thousands.
-- **Errors**: dividing by zero and results out of range are shown in place
-  of the number. Operations are refused until a new number is typed or `C`
-  is pressed.
+- **Exact.** Every number is a rational of unbounded integers, not a
+  floating-point approximation, and every key keeps it one, so every result
+  is exact: `0.1 + 0.2` is `0.3`, `10^100 + 1 − 10^100` is `1`, and
+  `1 ÷ 3 × 3` is `1`. (This is the rational part of Hans Boehm's arithmetic
+  for Android's calculator.)
+- **Every digit shown is correct.** A result is shown with up to 20
+  significant digits. If it goes on (`1 ÷ 3`), its digits are cut, never
+  rounded, and followed by `…`: `0.33333333333333333333…`. The value kept
+  is still exact, so `1 ÷ 3 = × 3 =` is `1`. Very large or small results use
+  an exponent (`1e30`, `1.2345678901234567890…e26`, `1e-30`).
+- **Entries** take up to 20 digits. The display groups them by thousands.
+- **Errors**: dividing by zero, and a result too large to keep (over 2^17
+  bits, about 39,000 digits), are shown in place of the number. Operations
+  are refused until a new number is typed or `C` is pressed.
 
 ## How it is made
 
 | File | What it is |
 | --- | --- |
-| `src/engine.cc` | `calculator.engine`: the calculator's state, one type per key, the operations as a `std::variant` dispatched by overloading, and how numbers are written. The arithmetic throws `division_by_zero` and `out_of_range`; the keys that compute catch them into the calculator's error state. Plain C++, no UI. |
+| `src/number.cc` | `calculator.number`: exact numbers. `natural`, unbounded (32-bit limbs, Knuth's long division), and `rational`, kept in lowest terms. |
+| `src/engine.cc` | `calculator.engine`: the calculator's state, one type per key, the operations as a `std::variant` dispatched by overloading, and how numbers are written (every shown digit correct). The arithmetic throws `division_by_zero` and `out_of_range`; the keys that compute catch them into the calculator's error state. Plain C++, no UI. |
 | `src/page.cc` | `calculator.page`: the page, a skiff.app tree. The calculator is its one part of the model; each button sends its key, and the key's handler presses it. Also the stylesheet. |
 | `src/main.cc` | The program: `SKIFF_APP(calculator::page, calculator::Hooks)`. |
 | `web/index.html` | The page Emscripten fills in; its script maps the keyboard onto the buttons. |
