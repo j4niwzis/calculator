@@ -22,13 +22,18 @@ for (const kind of ['chromium', 'firefox']) {
     const page = await browser.newPage({viewport: {width: 412, height: 915}});
     const errors = [];
     page.on('pageerror', (error) => errors.push(error.message));
+    page.on('console', (message) => console.log(`[${message.type()}] ${message.text()}`));
     await page.goto(url, {waitUntil: 'load'});
     // Taken over by the WebAssembly: a key changes the formula.
     const deadline = Date.now() + 60000;
     for (;;) {
       await click(page, '1');
       if ((await formula(page)) !== '') break;
-      if (Date.now() > deadline) throw new Error('the page was never taken over by the WebAssembly');
+      if (Date.now() > deadline) {
+        console.log(errors.join('\n'));
+        console.log(await page.locator('[data-view=Display]').evaluate((e) => e.outerHTML));
+        throw new Error('the page was never taken over by the WebAssembly');
+      }
       await page.waitForTimeout(500);
     }
     await click(page, 'AC');
