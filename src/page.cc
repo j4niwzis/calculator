@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// The calculator as a page: the display over the keys, the calculator
-// itself (calculator.engine) its one part of the model. A key sends itself;
-// its handler presses it on the calculator. The keyboard presses the same
-// buttons (web/index.html).
+// The calculator, laid out as Android's: the formula over its result, the
+// scientific keys (folded to one row, opened to three), the keypad filling
+// the rest. Every look is said here, in the nodes' specs and the keys'
+// themes -- one tree, drawn the same by the page and by Skia in a window.
+// The layout is skiff's: the keypad's rows and keys grow to fill whatever
+// the window is.
 module;
-// Named views: skiff.ui says what they are over (SKIFF_NAMED_BASE, ui::Named).
 #include <skiff/named.h>
 export module calculator.page;
 
@@ -19,92 +20,159 @@ using namespace skiff::ui;
 
 export namespace calculator {
 
+// Material You's dark scheme, as Android's calculator wears it.
 namespace colour {
-inline constexpr scene::Colour kBody = 0xff1b232bu;
-inline constexpr scene::Colour kInk = 0xffe8eef2u;
-inline constexpr scene::Colour kDim = 0xff8a9aa6u;
+inline constexpr scene::Colour kBackground = 0xff1b1b1fu;
+inline constexpr scene::Colour kFormula = 0xffe4e1e6u;
+inline constexpr scene::Colour kResult = 0xff938f99u;
+inline constexpr scene::Colour kNumber = 0xff303034u;
+inline constexpr scene::Colour kOnNumber = 0xffe4e1e6u;
+inline constexpr scene::Colour kOperator = 0xff4a4458u;
+inline constexpr scene::Colour kOnOperator = 0xffe8def8u;
+inline constexpr scene::Colour kClear = 0xff633b48u;
+inline constexpr scene::Colour kOnClear = 0xffffd8e4u;
+inline constexpr scene::Colour kEquals = 0xffd0bcffu;
+inline constexpr scene::Colour kOnEquals = 0xff381e72u;
+inline constexpr scene::Colour kScientific = 0xff1b1b1fu;
+inline constexpr scene::Colour kOnScientific = 0xffcac4d0u;
 }  // namespace colour
+
+// A key's look: its surface and text, its corners round, its label's size.
+[[nodiscard]] inline Theme key_theme(scene::Colour surface, scene::Colour text, float size) {
+  Theme t = theme();
+  t.fSurface = surface;
+  t.fSurfaceHover = surface;
+  t.fSurfaceActive = surface;
+  t.fText = text;
+  t.fLabel = text;
+  t.fCorner = 999.0f;  // as round as the key is short: a pill, a circle where it is square
+  t.fFontSize = size;
+  return t;
+}
+inline const Theme kNumberKey = key_theme(colour::kNumber, colour::kOnNumber, 28.0f);
+inline const Theme kOperatorKey = key_theme(colour::kOperator, colour::kOnOperator, 28.0f);
+inline const Theme kClearKey = key_theme(colour::kClear, colour::kOnClear, 24.0f);
+inline const Theme kEqualsKey = key_theme(colour::kEquals, colour::kOnEquals, 30.0f);
+inline const Theme kScientificKey = key_theme(colour::kScientific, colour::kOnScientific, 18.0f);
 
 // A key's handler: the key pressed on the calculator.
 template <class Key> auto on_key() {
   return handle<Key>([](const Key &key) { return model::over<calc>(pressed<Key>{key}); });
 }
-// A key's button: its label, and the key it sends.
-template <class Key> auto key_button(std::string label, Key key) {
-  return SendButton<Key>(std::move(label), std::move(key), {.height = 64.0f, .grow = scene::axes::kX});
+// A key, growing to fill its share of its row and its row's height.
+template <class Key> auto key(std::string label, Key k, const Theme &look) {
+  return SendButton<Key>(std::move(label), std::move(k), {.fillY = true, .grow = scene::axes::kX}, look);
+}
+// A key whose label and function follow the inverse key: sin and sin⁻¹.
+template <class F> auto inverting(F of_calc, std::string label, of first) {
+  return projected<calc>(std::move(of_calc), key(std::move(label), first, kScientificKey));
+}
+struct sin_or_inverse {
+  std::pair<std::string, of> operator()(const calc &c) const {
+    return c.inverse ? std::pair{std::string("sin\u207b\u00b9"), of{fn::arcsine{}}} : std::pair{std::string("sin"), of{fn::sine{}}};
+  }
+};
+struct cos_or_inverse {
+  std::pair<std::string, of> operator()(const calc &c) const {
+    return c.inverse ? std::pair{std::string("cos\u207b\u00b9"), of{fn::arccosine{}}} : std::pair{std::string("cos"), of{fn::cosine{}}};
+  }
+};
+struct tan_or_inverse {
+  std::pair<std::string, of> operator()(const calc &c) const {
+    return c.inverse ? std::pair{std::string("tan\u207b\u00b9"), of{fn::arctangent{}}} : std::pair{std::string("tan"), of{fn::tangent{}}};
+  }
+};
+struct ln_or_inverse {
+  std::pair<std::string, of> operator()(const calc &c) const {
+    return c.inverse ? std::pair{std::string("e\u02e3"), of{fn::exponential{}}} : std::pair{std::string("ln"), of{fn::natural_log{}}};
+  }
+};
+struct log_or_inverse {
+  std::pair<std::string, of> operator()(const calc &c) const {
+    return c.inverse ? std::pair{std::string("10\u02e3"), of{fn::ten_to{}}} : std::pair{std::string("log"), of{fn::common_log{}}};
+  }
+};
+struct angles_label {
+  std::pair<std::string, switch_angles> operator()(const calc &c) const {
+    return {std::string(angles(c)), switch_angles{}};
+  }
+};
+
+// A row of keys, a share of the height its column has.
+template <class... Keys> auto key_row(Keys... keys) {
+  return row(hbox(8.0f, {.fillX = true, .grow = scene::axes::kY}), std::move(keys)...);
 }
 
-// The display: what is being worked out, over the number.
+// The display: the formula, large, over its result; the angles read.
 inline auto display_lines() {
   return SKIFF_NAMED(Display,
-                     column(vbox(4.0f, {.fillX = true, .autoSize = scene::axes::kY, .padding = {12.0f, 8.0f, 12.0f, 8.0f}}),
+                     column(vbox(8.0f, {.fillX = true, .grow = scene::axes::kY, .padding = {24.0f, 24.0f, 12.0f, 24.0f}}),
                             styled({.alignSelf = scene::align::kStart},
-                                   text_for<calc>([](const calc &c) { return std::string(angles(c)); }, Text("RAD", 12.0f, colour::kDim))),
-                            styled({.minHeight = 22.0f, .alignSelf = scene::align::kEnd},
-                                   text_for<calc>([](const calc &c) { return expression(c); }, Text(std::string(), 18.0f, colour::kDim))),
-                            styled({.minHeight = 52.0f, .alignSelf = scene::align::kEnd},
-                                   text_for<calc>([](const calc &c) { return display(c); }, Text("0", 44.0f, colour::kInk, true)))));
+                                   text_for<calc>([](const calc &c) { return std::string(angles(c)); }, Text("RAD", 14.0f, colour::kResult))),
+                            styled({.grow = scene::axes::kY}, column(vbox(0.0f, {.fillX = true}))),
+                            styled({.minHeight = 64.0f, .alignSelf = scene::align::kEnd},
+                                   text_for<calc>([](const calc &c) { return formula_text(c); }, Text(std::string(), 52.0f, colour::kFormula))),
+                            styled({.minHeight = 36.0f, .alignSelf = scene::align::kEnd},
+                                   text_for<calc>([](const calc &c) { return result_text(c); }, Text(std::string(), 30.0f, colour::kResult)))));
 }
 
-// A row of keys. Not named (SKIFF_NAMED): a named view between a key and
-// the state whose handlers take it keeps the key's event from reaching
-// them.
-template <class... Keys> auto key_row(Keys... keys) {
-  return row(hbox(10.0f, {.fillX = true, .autoSize = scene::axes::kY}), std::move(keys)...);
+// The scientific keys: one row folded, three opened (the chevron says
+// which), as Android has them in a portrait window.
+inline auto scientific_folded() {
+  return column(vbox(4.0f, {.fillX = true, .height = 52.0f}),
+                key_row(key("\u221a", of{fn::square_root{}}, kScientificKey), key("\u03c0", put{constant::pi{}}, kScientificKey),
+                        key("^", choose{op::power{}}, kScientificKey), key("!", after{post::factorial{}}, kScientificKey),
+                        key("\u2304", expand{}, kScientificKey)));
+}
+inline auto scientific_opened() {
+  return column(vbox(4.0f, {.fillX = true, .height = 156.0f}),
+                key_row(key("\u221a", of{fn::square_root{}}, kScientificKey), key("\u03c0", put{constant::pi{}}, kScientificKey),
+                        key("^", choose{op::power{}}, kScientificKey), key("!", after{post::factorial{}}, kScientificKey),
+                        key("\u2303", expand{}, kScientificKey)),
+                key_row(projected<calc>(angles_label{}, key("RAD", switch_angles{}, kScientificKey)),
+                        inverting(sin_or_inverse{}, "sin", of{fn::sine{}}), inverting(cos_or_inverse{}, "cos", of{fn::cosine{}}),
+                        inverting(tan_or_inverse{}, "tan", of{fn::tangent{}}), key("e", put{constant::e{}}, kScientificKey)),
+                key_row(key("INV", switch_inverse{}, kScientificKey), inverting(ln_or_inverse{}, "ln", of{fn::natural_log{}}),
+                        inverting(log_or_inverse{}, "log", of{fn::common_log{}}), key("%", after{post::percent{}}, kScientificKey),
+                        key("x\u00b2", after{post::squared{}}, kScientificKey)));
 }
 
-// The calculator, named on the page around the state that keeps it.
+// The keypad: Android's five rows of four.
+inline auto keypad() {
+  return column(vbox(8.0f, {.fillX = true, .grow = scene::axes::kY, .padding = {8.0f, 16.0f, 16.0f, 16.0f}}),
+                key_row(key("AC", clear{}, kClearKey), key("( )", parentheses{}, kOperatorKey), key("%", after{post::percent{}}, kOperatorKey),
+                        key("\u00f7", choose{op::divide{}}, kOperatorKey)),
+                key_row(key("7", digit{7}, kNumberKey), key("8", digit{8}, kNumberKey), key("9", digit{9}, kNumberKey),
+                        key("\u00d7", choose{op::multiply{}}, kOperatorKey)),
+                key_row(key("4", digit{4}, kNumberKey), key("5", digit{5}, kNumberKey), key("6", digit{6}, kNumberKey),
+                        key("\u2212", choose{op::subtract{}}, kOperatorKey)),
+                key_row(key("1", digit{1}, kNumberKey), key("2", digit{2}, kNumberKey), key("3", digit{3}, kNumberKey),
+                        key("+", choose{op::add{}}, kOperatorKey)),
+                key_row(key("0", digit{0}, kNumberKey), key(".", point{}, kNumberKey), key("\u232b", backspace{}, kNumberKey),
+                        key("=", equals{}, kEqualsKey)));
+}
+
 auto page() {
   return SKIFF_NAMED(Calculator,
       state<calc>(
-          handlers(on_key<digit>(), on_key<point>(), on_key<choose>(), on_key<equals>(), on_key<clear>(), on_key<backspace>(),
-                   on_key<negate>(), on_key<percent>(), on_key<put>(), on_key<of>(), on_key<switch_angles>(),
-                   on_key<more_digits>()),
-                  column(vbox(10.0f, {.fillX = true, .autoSize = scene::axes::kY, .maxWidth = 380.0f,
-                                      .alignSelf = scene::align::kMiddle, .padding = {16.0f, 16.0f, 16.0f, 16.0f},
-                                      .cornerRadius = 20.0f, .background = colour::kBody}),
-                         display_lines(),
-                         key_row(key_button("DEG", switch_angles{}), key_button("\u03c0", put{constant::pi{}}),
-                                 key_button("e", put{constant::e{}}), key_button("\u22ef", more_digits{})),
-                         key_row(key_button("sin", of{fn::sine{}}), key_button("cos", of{fn::cosine{}}),
-                                 key_button("tan", of{fn::tangent{}}), key_button("x\u02b8", choose{op::power{}})),
-                         key_row(key_button("asin", of{fn::arcsine{}}), key_button("acos", of{fn::arccosine{}}),
-                                 key_button("atan", of{fn::arctangent{}}), key_button("1/x", of{fn::reciprocal{}})),
-                         key_row(key_button("ln", of{fn::natural_log{}}), key_button("log", of{fn::common_log{}}),
-                                 key_button("\u221a", of{fn::square_root{}}), key_button("x\u00b2", of{fn::square{}})),
-                         key_row(key_button("C", clear{}), key_button("⌫", backspace{}), key_button("%", percent{}),
-                                      key_button("÷", choose{op::divide{}})),
-                         key_row(key_button("7", digit{7}), key_button("8", digit{8}), key_button("9", digit{9}),
-                                 key_button("×", choose{op::multiply{}})),
-                         key_row(key_button("4", digit{4}), key_button("5", digit{5}), key_button("6", digit{6}),
-                                 key_button("−", choose{op::subtract{}})),
-                         key_row(key_button("1", digit{1}), key_button("2", digit{2}), key_button("3", digit{3}),
-                                 key_button("+", choose{op::add{}})),
-                         key_row(key_button("±", negate{}), key_button("0", digit{0}), key_button(".", point{}),
-                                 key_button("=", equals{})))));
+          handlers(on_key<digit>(), on_key<point>(), on_key<choose>(), on_key<put>(), on_key<of>(), on_key<after>(),
+                   on_key<parentheses>(), on_key<equals>(), on_key<clear>(), on_key<backspace>(), on_key<switch_angles>(),
+                   on_key<switch_inverse>(), on_key<expand>()),
+          column(vbox(0.0f, {.fill = true, .background = colour::kBackground}),
+                 display_lines(),
+                 switch_on<calc>([](const calc &c) { return c.expanded ? std::size_t{1} : std::size_t{0}; }, scientific_folded(),
+                                 scientific_opened()),
+                 styled({.fillX = true, .grow = scene::axes::kY}, keypad()))));
 }
 
 using Model = skiff::ui::ModelOf<decltype(page())>;
 
-// The page's look: dark, the keys round, the operations in amber; the
-// display's number broken where it is longer than the calculator is wide.
-inline constexpr std::string_view kCss = R"(
-html,body{margin:0;min-height:100%;background:#0f1419}
-#skiff{font:16px/1.3 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#e8eef2;min-height:100vh;display:flex;flex-direction:column;justify-content:center;padding:16px;box-sizing:border-box}
-[data-view=Calculator]{width:100%;max-width:380px;margin:0 auto;border-radius:20px;box-shadow:0 20px 50px rgba(0,0,0,.45)}
-[data-view=Display]>*{text-align:right;word-break:break-all;max-width:100%}
-[data-view=Calculator] .skiff-button{flex:1 1 0;min-width:0;height:64px;border:0!important;border-radius:14px!important;font:500 24px/1 inherit!important;background:#2a3540!important;color:#e8eef2!important;cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent;transition:filter .08s}
-[data-view=Calculator] .skiff-button{font-size:20px!important}
-[data-view=Calculator] .skiff-button:last-child{background:#e18a32!important;color:#fff!important}
-.skiff-button:hover{filter:brightness(1.15)}
-.skiff-button:active,.skiff-button.pressed{filter:brightness(.85)}
-.skiff-button:focus-visible{outline:2px solid #8fd3e0;outline-offset:2px}
-)";
-
-// What the calculator adds to skiff.app's program (main.cc): its look and
-// what is written into the head of the page.
+// What the calculator adds to skiff.app's program (main.cc): the paper
+// behind it, and what is written into the head of the page. Its look is
+// the tree's, above.
 struct Hooks {
-  [[nodiscard]] std::string_view stylesheet() const { return kCss; }
+  [[nodiscard]] scene::Colour paper() const { return colour::kBackground; }
+  [[nodiscard]] std::string_view stylesheet() const { return "html,body{margin:0;height:100%}#skiff{height:100%}"; }
   [[nodiscard]] std::string_view head() const {
     return "<title>Calculator</title>\n"
            "<meta name=\"description\" content=\"A calculator, written in C++ with skiff.\">\n";
