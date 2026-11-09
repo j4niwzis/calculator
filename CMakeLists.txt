@@ -44,6 +44,17 @@ if(ANDROID AND NOT CALCULATOR_ENGINE_ONLY)
   include(${CMAKE_CURRENT_LIST_DIR}/cmake/android.cmake)
 endif()
 
+# One room for constant evaluation for everything this build compiles: the
+# libraries of the family each say theirs as a usage requirement of their
+# modules (splice 300000000, chevron 100000000), and a unit compiled with
+# one, both or neither made its own std module -- three of them, and a
+# target that imports modules of two saw two ("Disagreement of the location
+# of the 'std' module"). Said once, here, for every target, and as theirs.
+set(CALCULATOR_CONSTEXPR_STEPS 300000000)
+set(SPLICE_CONSTEXPR_STEPS ${CALCULATOR_CONSTEXPR_STEPS} CACHE STRING "clang's -fconstexpr-steps, the calculator's" FORCE)
+set(CHEVRON_CONSTEXPR_STEPS ${CALCULATOR_CONSTEXPR_STEPS} CACHE STRING "clang's -fconstexpr-steps, the calculator's" FORCE)
+add_compile_options("$<$<COMPILE_LANG_AND_ID:CXX,Clang>:-fconstexpr-steps=${CALCULATOR_CONSTEXPR_STEPS}>")
+
 add_library(calculator_engine STATIC)
 target_sources(calculator_engine PUBLIC FILE_SET CXX_MODULES FILES src/number.cc src/real.cc src/symbolic.cc src/engine.cc)
 target_compile_features(calculator_engine PUBLIC cxx_std_26)
@@ -113,15 +124,6 @@ if(NOT CALCULATOR_ENGINE_ONLY)
     set(SKIFF_SKIA ON CACHE BOOL "skiff on Skia" FORCE)
   endif()
   cme_find_package(skiff-framework 0.1.0 REQUIRED)
-
-  # The calculator's own modules compiled with splice's room for constant
-  # evaluation, which splice says as a usage requirement of every module of
-  # the family (skiff's, through it): without it the engine's units made
-  # another std module than skiff's, and a target that imports both saw two
-  # ("Disagreement of the location of the 'std' module").
-  if(DEFINED SPLICE_CONSTEXPR_STEPS AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    target_compile_options(calculator_engine PUBLIC "-fconstexpr-steps=${SPLICE_CONSTEXPR_STEPS}")
-  endif()
 
   add_library(calculator_ui STATIC)
   target_sources(calculator_ui PUBLIC FILE_SET CXX_MODULES FILES src/page.cc)
