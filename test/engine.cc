@@ -3,6 +3,7 @@
 import std;
 import gtest;
 import calculator.engine;
+import calculator.real;
 
 #include "gtest/gtest-macros.h"
 
@@ -185,4 +186,38 @@ TEST(Number, DecimalRoundTrip) {
 }
 
 TEST(Number, LowestTerms) { EXPECT_EQ(rational::from_decimal("0.50"), rational(1) / rational(2)); }
+// A real's first digits and the exponent of the first: d...e<exponent>.
+std::string first(const real &x, std::size_t count) {
+  const decimal_digits d = digits_of(x, count);
+  return std::format("{}{}e{}", d.negative ? "-" : "", d.digits, d.exponent);
+}
+
+TEST(Real, Pi) { EXPECT_EQ(first(pi(), 30), "314159265358979323846264338327e0"); }
+
+TEST(Real, E) { EXPECT_EQ(first(exp(real(1)), 30), "271828182845904523536028747135e0"); }
+
+TEST(Real, SquareRootOfTwo) { EXPECT_EQ(first(sqrt(real(2)), 30), "141421356237309504880168872420e0"); }
+
+TEST(Real, LnOfTwo) { EXPECT_EQ(first(ln(real(2)), 30), "693147180559945309417232121458e-1"); }
+
+TEST(Real, LnOfTen) { EXPECT_EQ(first(ln(real(10)), 30), "230258509299404568401799145468e0"); }
+
+TEST(Real, SinOfOne) { EXPECT_EQ(first(sin(real(1)), 30), "841470984807896506652502321630e-1"); }
+
+TEST(Real, CosOfOne) { EXPECT_EQ(first(cos(real(1)), 30), "540302305868139717400936607442e-1"); }
+
+TEST(Real, AtanOfOneIsAQuarterOfPi) { EXPECT_EQ(first(atan(real(1)), 30), "785398163397448309615660845819e-1"); }
+
+TEST(Real, AsinOfAHalfIsASixthOfPi) {
+  EXPECT_EQ(first(asin(real(rational(1) / rational(2))), 20), "52359877559829887307e-1");
+}
+
+TEST(Real, ANegativeSine) { EXPECT_EQ(first(sin(real(4)), 20), "-75680249530792825137e-1"); }
+
+TEST(Real, ATinyExponential) { EXPECT_EQ(first(exp(real(-50)), 18), "192874984796391778e-22"); }
+
+TEST(Real, ALargeExponential) { EXPECT_EQ(first(exp(real(100)), 20), "26881171418161354484e43"); }
+
+TEST(Real, LnOfANegativeNumberThrows) { EXPECT_THROW((void)ln(real(-2)), not_positive); }
 }  // namespace
+

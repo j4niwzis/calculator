@@ -23,7 +23,7 @@ endif()
 project(calculator VERSION 1.0.0 LANGUAGES CXX)
 
 add_library(calculator_engine STATIC)
-target_sources(calculator_engine PUBLIC FILE_SET CXX_MODULES FILES src/number.cc src/engine.cc)
+target_sources(calculator_engine PUBLIC FILE_SET CXX_MODULES FILES src/number.cc src/real.cc src/engine.cc)
 target_compile_features(calculator_engine PUBLIC cxx_std_26)
 
 # The tests: googletest, as C++ modules (import gtest), as skiff's own.
@@ -58,6 +58,8 @@ if(NOT CALCULATOR_ENGINE_ONLY)
   # skiff's scene). Forced: a build directory configured with the canvas
   # keeps the option in its cache, whatever the default is now.
   set(SKIFF_FRAMEWORK_CANVAS OFF CACHE BOOL "skiff.app with the canvas" FORCE)
+  # Nor a window: a native program here only writes the page out.
+  set(SKIFF_FRAMEWORK_WINDOW OFF CACHE BOOL "skiff.platform.window" FORCE)
   cme_find_package(skiff-framework 0.1.0 REQUIRED)
 
   add_library(calculator_ui STATIC)

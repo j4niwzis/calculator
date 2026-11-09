@@ -111,6 +111,40 @@ class natural {
     if (carry != 0) limbs_.push_back(static_cast<std::uint32_t>(carry));
   }
 
+  // Shifted left (multiplied by 2^by), and right (divided by 2^by, cut).
+  [[nodiscard]] natural shifted_left(std::size_t by) const {
+    if (zero()) return {};
+    natural out;
+    out.limbs_ = shifted(limbs_, static_cast<int>(by % 32), limbs_.size() + 1);
+    out.limbs_.insert(out.limbs_.begin(), by / 32, 0u);
+    out.trim();
+    return out;
+  }
+  [[nodiscard]] natural shifted_right(std::size_t by) const {
+    const std::size_t whole = by / 32;
+    if (whole >= limbs_.size()) return {};
+    const int bits = static_cast<int>(by % 32);
+    natural out;
+    out.limbs_.resize(limbs_.size() - whole);
+    for (std::size_t i = 0; i < out.limbs_.size(); ++i) {
+      const std::uint64_t here = limbs_[i + whole];
+      const std::uint64_t above = i + whole + 1 < limbs_.size() ? limbs_[i + whole + 1] : 0;
+      out.limbs_[i] = static_cast<std::uint32_t>(bits == 0 ? here : (here >> bits) | (above << (32 - bits)));
+    }
+    out.trim();
+    return out;
+  }
+  // The largest natural whose square is no more than this one (Newton).
+  [[nodiscard]] natural square_root() const {
+    if (zero()) return {};
+    natural x = natural(1).shifted_left((bits() + 1) / 2);
+    for (;;) {
+      natural y = (x + divmod(*this, x).first).shifted_right(1);
+      if (y >= x) return x;
+      x = std::move(y);
+    }
+  }
+
   // From decimal digits (nothing else in them); and back.
   [[nodiscard]] static natural from_decimal(std::string_view digits) {
     natural out;
@@ -207,6 +241,59 @@ class natural {
   return a;
 }
 
+// A signed integer of any size: its sign and magnitude (zero never negative).
+class integer {
+ public:
+  integer() = default;
+  integer(std::int64_t v)  // NOLINT: an integer is any int64 too
+      : negative_(v < 0), magnitude_(v < 0 ? 0 - static_cast<std::uint64_t>(v) : static_cast<std::uint64_t>(v)) {}
+  integer(bool negative, natural magnitude) : negative_(negative && !magnitude.zero()), magnitude_(std::move(magnitude)) {}
+
+  [[nodiscard]] bool zero() const noexcept { return magnitude_.zero(); }
+  [[nodiscard]] bool negative() const noexcept { return negative_; }
+  [[nodiscard]] int sign() const noexcept { return zero() ? 0 : negative_ ? -1 : 1; }
+  [[nodiscard]] const natural &magnitude() const noexcept { return magnitude_; }
+  // The bits of its magnitude.
+  [[nodiscard]] std::size_t bits() const noexcept { return magnitude_.bits(); }
+  [[nodiscard]] integer abs() const { return integer(false, magnitude_); }
+
+  friend bool operator==(const integer &, const integer &) = default;
+  friend std::strong_ordering operator<=>(const integer &a, const integer &b) {
+    if (a.negative_ != b.negative_) return a.negative_ ? std::strong_ordering::less : std::strong_ordering::greater;
+    return a.negative_ ? b.magnitude_ <=> a.magnitude_ : a.magnitude_ <=> b.magnitude_;
+  }
+
+  [[nodiscard]] integer operator-() const { return integer(!negative_, magnitude_); }
+  friend integer operator+(const integer &a, const integer &b) {
+    if (a.negative_ == b.negative_) return integer(a.negative_, a.magnitude_ + b.magnitude_);
+    if (a.magnitude_ >= b.magnitude_) return integer(a.negative_, a.magnitude_ - b.magnitude_);
+    return integer(b.negative_, b.magnitude_ - a.magnitude_);
+  }
+  friend integer operator-(const integer &a, const integer &b) { return a + -b; }
+  friend integer operator*(const integer &a, const integer &b) {
+    return integer(a.negative_ != b.negative_, a.magnitude_ * b.magnitude_);
+  }
+  // Divided, cut toward zero (as Java's BigInteger.divide, which the
+  // constructive reals were written with); d not zero.
+  friend integer operator/(const integer &n, const integer &d) {
+    return integer(n.negative_ != d.negative_, divmod(n.magnitude_, d.magnitude_).first);
+  }
+  // Shifted: left by a positive count, right by a negative one -- rounded
+  // down (toward minus infinity), as an arithmetic shift is.
+  [[nodiscard]] integer shifted(std::int64_t by) const {
+    if (by >= 0) return integer(negative_, magnitude_.shifted_left(static_cast<std::size_t>(by)));
+    const std::size_t right = static_cast<std::size_t>(-by);
+    natural cut = magnitude_.shifted_right(right);
+    // Rounded down: a negative number with bits cut off is one further.
+    if (negative_ && cut.shifted_left(right) != magnitude_) cut = cut + natural(1);
+    return integer(negative_, std::move(cut));
+  }
+
+ private:
+  bool negative_ = false;
+  natural magnitude_;
+};
+
 // A rational number, in lowest terms: its sign, numerator and denominator
 // (never zero; zero is 0/1, never negative).
 class rational {
@@ -230,8 +317,13 @@ class rational {
     return rational(negative, std::move(num), std::move(den));
   }
 
+  explicit rational(const integer &v) : rational(v.negative(), v.magnitude(), natural(1)) {}
+
   [[nodiscard]] bool zero() const noexcept { return num_.zero(); }
   [[nodiscard]] bool negative() const noexcept { return negative_; }
+  [[nodiscard]] bool whole() const noexcept { return den_ == natural(1); }
+  // Its numerator, signed.
+  [[nodiscard]] integer signed_numerator() const { return integer(negative_, num_); }
   [[nodiscard]] const natural &numerator() const noexcept { return num_; }
   [[nodiscard]] const natural &denominator() const noexcept { return den_; }
   // How large it is written down: its numerator's and denominator's bits.
