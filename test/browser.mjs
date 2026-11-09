@@ -9,8 +9,8 @@ const playwright = require('playwright');
 
 const url = process.argv[2];
 // The display's lines: the angles, a spacer, the formula, its result.
-const formula = (page) => page.locator('[data-view=Display] > :nth-child(3)').innerText();
-const below = (page) => page.locator('[data-view=Display] > :nth-child(4)').innerText();
+const formula = (page) => page.locator('[data-view=Display] > :nth-child(n+3):nth-child(-n+5):visible').innerText();
+const below = (page) => page.locator('[data-view=Display] > :nth-child(6)').innerText();
 const click = (page, label) => page.getByRole('button', {name: label, exact: true}).first().click();
 const until = (page, line, text) => page.waitForFunction(([n, t]) => document.querySelector('[data-view=Display] > :nth-child(' + n + ')').innerText === t, [line, text]);
 

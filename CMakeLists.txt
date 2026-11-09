@@ -77,7 +77,7 @@ if(NOT CALCULATOR_ENGINE_ONLY)
   # text kinds, the routing that carries a root's own scope).
   cme_declare_port(NAME skiff PROVIDES skiff
     GITHUB_REPOSITORY j4niwzis/skiff
-    GIT_TAG d95170f7d0dcc163e8257c3a9969aa58f8f32ae0
+    GIT_TAG a94b851a06f08b3c74f9ad318e0482e3ae670338
     VERSION 0.1.0)
   # skiff-widgets ahead of the framework's pin: its SendButton takes a Theme on
   # both backends, which the calculator's keys are drawn by.
@@ -87,7 +87,7 @@ if(NOT CALCULATOR_ENGINE_ONLY)
     VERSION 0.1.0)
   cme_declare_port(NAME skiff-framework PROVIDES skiff-framework skiff_framework
     GITHUB_REPOSITORY j4niwzis/skiff-framework
-    GIT_TAG 1441229981538dece2e35b21cf14fbb32785c8b8
+    GIT_TAG 2041535a090e3d6b60684df2f900cf52491ce7df
     VERSION 0.1.0)
   # Two builds of one tree: the page (under Emscripten, and natively the
   # program that writes it out), with no scene and no window; and the app in
@@ -97,6 +97,14 @@ if(NOT CALCULATOR_ENGINE_ONLY)
   option(CALCULATOR_WINDOW "The calculator as an app in a window (SDL, Skia)" OFF)
   set(SKIFF_FRAMEWORK_CANVAS ${CALCULATOR_WINDOW} CACHE BOOL "skiff.app with the scene" FORCE)
   set(SKIFF_FRAMEWORK_WINDOW ${CALCULATOR_WINDOW} CACHE BOOL "skiff.platform.window" FORCE)
+  # The window has no layout reports and no views' names in its binary:
+  # skiff's telling what sticks out is a development aid. The page keeps
+  # the names, as data-view, which its tests find the display by.
+  if(CALCULATOR_WINDOW)
+    set(SKIFF_LAYOUT_REPORTS OFF CACHE BOOL "skiff's layout reports and views' names" FORCE)
+  else()
+    set(SKIFF_LAYOUT_REPORTS ON CACHE BOOL "skiff's layout reports and views' names" FORCE)
+  endif()
   # The window draws skiff's scene with Skia itself -- not skiff's stand-in
   # for Skia's types, which draws nothing (a build directory first made for
   # the page keeps it in its cache).

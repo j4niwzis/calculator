@@ -103,53 +103,41 @@ template <class... Keys> auto key_row(Keys... keys) {
   return row(hbox(8.0f, {.fillX = true, .grow = scene::axes::kY}), std::move(keys)...);
 }
 
+// The formula's size, as Android's: shrinking as it grows, 52 down to 30,
+// then held there, its start going out of sight past the display's left
+// edge (the display masks what sticks out), its end -- what is being typed
+// -- in sight. Read by the characters it has (UTF-8's lead bytes).
+[[nodiscard]] inline std::size_t formula_size_index(const calc &c) {
+  const std::string text = formula_text(c);
+  const auto characters = std::ranges::count_if(text, [](char ch) { return (static_cast<unsigned char>(ch) & 0xC0) != 0x80; });
+  return characters <= 11 ? 0 : characters <= 15 ? 1 : 2;
+}
+template <std::size_t I> struct formula_sized {
+  [[nodiscard]] scene::Spec operator()(const calc &c) const { return scene::Spec{.visible = formula_size_index(c) == I}; }
+};
+// A line of one line only, never wrapped: what does not fit sticks out to
+// the left, and the display hides it.
+inline Text one_line(float size, scene::Colour colour) {
+  Text text(std::string(), size, colour);
+  text.setWrapped(false);
+  return text;
+}
+template <std::size_t I> auto formula_line(float size) {
+  return spec_for<calc>(formula_sized<I>{},
+                        styled({.minHeight = 64.0f, .alignSelf = scene::align::kEnd},
+                               text_for<calc>([](const calc &c) { return formula_text(c); }, one_line(size, colour::kFormula))));
+}
+
 // The display: the formula, large, over its result; the angles read.
 inline auto display_lines() {
   return SKIFF_NAMED(Display,
-                     column(vbox(8.0f, {.fillX = true, .minHeight = 180.0f, .padding = {24.0f, 24.0f, 12.0f, 24.0f}}),
+                     column(vbox(8.0f, {.fillX = true, .minHeight = 180.0f, .padding = {24.0f, 24.0f, 12.0f, 24.0f}, .masking = true}),
                             styled({.alignSelf = scene::align::kStart},
                                    text_for<calc>([](const calc &c) { return std::string(angles(c)); }, Text("RAD", 14.0f, colour::kResult))),
                             styled({.grow = scene::axes::kY}, column(vbox(0.0f, {.fillX = true}))),
-                            styled({.minHeight = 64.0f, .alignSelf = scene::align::kEnd},
-                                   text_for<calc>([](const calc &c) { return formula_text(c); }, Text(std::string(), 52.0f, colour::kFormula))),
+                            formula_line<0>(52.0f), formula_line<1>(40.0f), formula_line<2>(30.0f),
                             styled({.minHeight = 36.0f, .alignSelf = scene::align::kEnd},
-                                   text_for<calc>([](const calc &c) { return result_text(c); }, Text(std::string(), 30.0f, colour::kResult)))));
-}
-
-// The scientific keys: one row folded, three opened (the chevron says
-// which), as Android has them in a portrait window.
-inline auto scientific_folded() {
-  return column(vbox(4.0f, {.fillX = true, .height = 52.0f}),
-                key_row(key("\u221a", of{fn::square_root{}}, kScientificKey), key("\u03c0", put{constant::pi{}}, kScientificKey),
-                        key("^", choose{op::power{}}, kScientificKey), key("!", after{post::factorial{}}, kScientificKey),
-                        key("\u2304", expand{}, kScientificKey)));
-}
-inline auto scientific_opened() {
-  return column(vbox(4.0f, {.fillX = true, .height = 156.0f}),
-                key_row(key("\u221a", of{fn::square_root{}}, kScientificKey), key("\u03c0", put{constant::pi{}}, kScientificKey),
-                        key("^", choose{op::power{}}, kScientificKey), key("!", after{post::factorial{}}, kScientificKey),
-                        key("\u2303", expand{}, kScientificKey)),
-                key_row(projected<calc>(angles_label{}, key("RAD", switch_angles{}, kScientificKey)),
-                        inverting(sin_or_inverse{}, "sin", of{fn::sine{}}), inverting(cos_or_inverse{}, "cos", of{fn::cosine{}}),
-                        inverting(tan_or_inverse{}, "tan", of{fn::tangent{}}), key("e", put{constant::e{}}, kScientificKey)),
-                key_row(key("INV", switch_inverse{}, kScientificKey), inverting(ln_or_inverse{}, "ln", of{fn::natural_log{}}),
-                        inverting(log_or_inverse{}, "log", of{fn::common_log{}}), key("%", after{post::percent{}}, kScientificKey),
-                        key("x\u00b2", after{post::squared{}}, kScientificKey)));
-}
-
-// The keypad: Android's five rows of four.
-inline auto keypad() {
-  return column(vbox(8.0f, {.fillX = true, .grow = scene::axes::kY, .padding = {8.0f, 16.0f, 16.0f, 16.0f}}),
-                key_row(key("AC", clear{}, kClearKey), key("( )", parentheses{}, kOperatorKey), key("%", after{post::percent{}}, kOperatorKey),
-                        key("\u00f7", choose{op::divide{}}, kOperatorKey)),
-                key_row(key("7", digit{7}, kNumberKey), key("8", digit{8}, kNumberKey), key("9", digit{9}, kNumberKey),
-                        key("\u00d7", choose{op::multiply{}}, kOperatorKey)),
-                key_row(key("4", digit{4}, kNumberKey), key("5", digit{5}, kNumberKey), key("6", digit{6}, kNumberKey),
-                        key("\u2212", choose{op::subtract{}}, kOperatorKey)),
-                key_row(key("1", digit{1}, kNumberKey), key("2", digit{2}, kNumberKey), key("3", digit{3}, kNumberKey),
-                        key("+", choose{op::add{}}, kOperatorKey)),
-                key_row(key("0", digit{0}, kNumberKey), key(".", point{}, kNumberKey), key("\u232b", backspace{}, kNumberKey),
-                        key("=", equals{}, kEqualsKey)));
+                                   text_for<calc>([](const calc &c) { return result_text(c); }, one_line(30.0f, colour::kResult)))));
 }
 
 auto page() {
