@@ -32,6 +32,14 @@ project(calculator VERSION 1.0.0 LANGUAGES C CXX)
 if(MANDK_ROOT AND NOT ANDROID)
   set(ANDROID TRUE)
 endif()
+# Everything position-independent on Android, as mux has it: the library is
+# shared, and every static library linked into it is compiled alike -- else
+# the std module was made twice (with -fPIC and without), and a target
+# seeing both stopped the build ("Disagreement of the location of the 'std'
+# module").
+if(ANDROID)
+  set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+endif()
 if(ANDROID AND NOT CALCULATOR_ENGINE_ONLY)
   include(${CMAKE_CURRENT_LIST_DIR}/cmake/android.cmake)
 endif()
