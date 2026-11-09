@@ -132,15 +132,19 @@ if(NOT CALCULATOR_ENGINE_ONLY)
       include(${CMAKE_CURRENT_LIST_DIR}/cmake/android-apk.cmake)
       calculator_add_android_apk(calculator)
     else()
-      add_executable(calculator-window src/main_window.cc)
-      target_link_libraries(calculator-window PRIVATE calculator_ui skiff::app_window)
+      # The program in a library, main alone in the executable: everything
+      # that imports std compiled one way (see src/main_window.cc).
+      add_library(calculator_window_program STATIC src/main_window.cc)
+      target_link_libraries(calculator_window_program PUBLIC calculator_ui skiff::app_window)
+      set_target_properties(calculator_window_program PROPERTIES CXX_STANDARD 26 CXX_SCAN_FOR_MODULES ON)
+      add_executable(calculator-window src/window_main.c)
+      target_link_libraries(calculator-window PRIVATE calculator_window_program)
       # The static build (cmake/musl-static.cmake): every direct call that is
       # not recursion inlined at this link -- this one only, not the feature
       # tests' nor the ports' (tools/force-inline).
       if(CALCULATOR_FORCE_INLINE_PLUGIN)
         target_link_options(calculator-window PRIVATE "LINKER:--load-pass-plugin=${CALCULATOR_FORCE_INLINE_PLUGIN}")
       endif()
-      set_target_properties(calculator-window PROPERTIES CXX_STANDARD 26 CXX_SCAN_FOR_MODULES ON)
     endif()
   else()
   add_executable(calculator src/main.cc)
