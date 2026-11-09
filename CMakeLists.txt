@@ -50,6 +50,19 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
 endif()
 
 if(NOT CALCULATOR_ENGINE_ONLY)
+  # On Android (the source-built toolchain mux uses): SDL's NativeActivity
+  # fork, said before any port is declared: cmake-everywhere reads its registry at the
+  # first declaration, and the first to declare a port is the one read. That toolchain says Linux for
+  # CMAKE_SYSTEM_NAME and gives MANDK_ROOT: an Android build is said so here,
+  # before any port reads ANDROID -- else the fork was declared after the
+  # registry's SDL had been, and skiff-framework took the build for desktop
+  # Linux.
+  if(MANDK_ROOT AND NOT ANDROID)
+    set(ANDROID TRUE)
+  endif()
+  if(ANDROID)
+    include(${CMAKE_CURRENT_LIST_DIR}/cmake/android.cmake)
+  endif()
   # skiff at its own head, as skiff-widgets' is built against it (the scene's
   # text kinds, the routing that carries a root's own scope).
   cme_declare_port(NAME skiff PROVIDES skiff
@@ -74,18 +87,6 @@ if(NOT CALCULATOR_ENGINE_ONLY)
   option(CALCULATOR_WINDOW "The calculator as an app in a window (SDL, Skia)" OFF)
   set(SKIFF_FRAMEWORK_CANVAS ${CALCULATOR_WINDOW} CACHE BOOL "skiff.app with the scene" FORCE)
   set(SKIFF_FRAMEWORK_WINDOW ${CALCULATOR_WINDOW} CACHE BOOL "skiff.platform.window" FORCE)
-  # On Android (the source-built toolchain mux uses): SDL's NativeActivity
-  # fork, said before anything asks for SDL. That toolchain says Linux for
-  # CMAKE_SYSTEM_NAME and gives MANDK_ROOT: an Android build is said so here,
-  # before any port reads ANDROID -- else the fork was declared after the
-  # registry's SDL had been, and skiff-framework took the build for desktop
-  # Linux.
-  if(MANDK_ROOT AND NOT ANDROID)
-    set(ANDROID TRUE)
-  endif()
-  if(ANDROID)
-    include(${CMAKE_CURRENT_LIST_DIR}/cmake/android.cmake)
-  endif()
   cme_find_package(skiff-framework 0.1.0 REQUIRED)
 
   add_library(calculator_ui STATIC)
