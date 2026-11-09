@@ -83,7 +83,7 @@ if(NOT CALCULATOR_ENGINE_ONLY)
   # both backends, which the calculator's keys are drawn by.
   cme_declare_port(NAME skiff-widgets PROVIDES skiff-widgets skiff_widgets
     GITHUB_REPOSITORY j4niwzis/skiff-widgets
-    GIT_TAG b9ab2f347c704a5702f7a51f1376d88e9d9db870
+    GIT_TAG 622ce38bbdbdd47abf11568f33284b1495384a4e
     VERSION 0.1.0)
   cme_declare_port(NAME skiff-framework PROVIDES skiff-framework skiff_framework
     GITHUB_REPOSITORY j4niwzis/skiff-framework
