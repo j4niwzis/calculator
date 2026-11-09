@@ -25,7 +25,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y ninja-build meson python3 nasm pkg-config perl gperf bison flex \
-            curl lsb-release software-properties-common gnupg file
+            curl lsb-release software-properties-common gnupg file generate-ninja
           curl -fsSL https://apt.llvm.org/llvm.sh -o /tmp/llvm.sh
           sudo bash /tmp/llvm.sh 23
           sudo apt-get install -y lld-23 llvm-23 llvm-23-dev libclang-rt-23-dev
