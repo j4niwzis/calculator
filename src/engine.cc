@@ -38,36 +38,37 @@ using operation = std::variant<op::add, op::subtract, op::multiply, op::divide>;
 
 // ---- what can go wrong ------------------------------------------------------
 
-struct division_by_zero {
-  friend bool operator==(division_by_zero, division_by_zero) = default;
+// Thrown by the arithmetic; each says what it is (what()). The keys that
+// work something out catch them, and the calculator keeps the one caught
+// as its state (calc::failed) until a new number or C.
+struct division_by_zero : std::exception {
+  [[nodiscard]] const char *what() const noexcept override { return "Cannot divide by zero"; }
+  friend bool operator==(const division_by_zero &, const division_by_zero &) { return true; }
 };
 // A result too large for a double (or no number at all).
-struct out_of_range {
-  friend bool operator==(out_of_range, out_of_range) = default;
+struct out_of_range : std::exception {
+  [[nodiscard]] const char *what() const noexcept override { return "Out of range"; }
+  friend bool operator==(const out_of_range &, const out_of_range &) { return true; }
 };
 using failure = std::variant<division_by_zero, out_of_range>;
 
-[[nodiscard]] constexpr std::string_view message(division_by_zero) { return "Cannot divide by zero"; }
-[[nodiscard]] constexpr std::string_view message(out_of_range) { return "Out of range"; }
-[[nodiscard]] constexpr std::string_view message(const failure &what) {
-  return std::visit([](auto one) { return message(one); }, what);
+[[nodiscard]] inline std::string_view message(const failure &what) {
+  return std::visit([](const auto &one) { return std::string_view(one.what()); }, what);
 }
-
-using outcome = std::expected<double, failure>;
 
 // A result as kept: a finite number, never a negative zero.
-[[nodiscard]] inline outcome checked(double v) {
-  if (!std::isfinite(v)) return std::unexpected(failure{out_of_range{}});
+[[nodiscard]] inline double checked(double v) {
+  if (!std::isfinite(v)) throw out_of_range{};
   return v == 0.0 ? 0.0 : v;
 }
-[[nodiscard]] inline outcome apply(op::add, double a, double b) { return checked(a + b); }
-[[nodiscard]] inline outcome apply(op::subtract, double a, double b) { return checked(a - b); }
-[[nodiscard]] inline outcome apply(op::multiply, double a, double b) { return checked(a * b); }
-[[nodiscard]] inline outcome apply(op::divide, double a, double b) {
-  if (b == 0.0) return std::unexpected(failure{division_by_zero{}});
+[[nodiscard]] inline double apply(op::add, double a, double b) { return checked(a + b); }
+[[nodiscard]] inline double apply(op::subtract, double a, double b) { return checked(a - b); }
+[[nodiscard]] inline double apply(op::multiply, double a, double b) { return checked(a * b); }
+[[nodiscard]] inline double apply(op::divide, double a, double b) {
+  if (b == 0.0) throw division_by_zero{};
   return checked(a / b);
 }
-[[nodiscard]] inline outcome apply(const operation &which, double a, double b) {
+[[nodiscard]] inline double apply(const operation &which, double a, double b) {
   return std::visit([&](auto one) { return apply(one, a, b); }, which);
 }
 
@@ -170,8 +171,19 @@ struct percent {};
 // What went wrong, shown in place of the entry.
 [[nodiscard]] inline calc failing(failure what) {
   calc out;
-  out.failed = what;
+  out.failed = std::move(what);
   return out;
+}
+// A key that works something out: what its arithmetic throws caught here,
+// and kept as the calculator's state.
+template <class Work> [[nodiscard]] calc guarded(Work work) {
+  try {
+    return work();
+  } catch (const division_by_zero &caught) {
+    return failing(caught);
+  } catch (const out_of_range &caught) {
+    return failing(caught);
+  }
 }
 
 [[nodiscard]] inline calc press(calc c, digit d) {
@@ -205,13 +217,12 @@ struct percent {};
   return c;
 }
 
-[[nodiscard]] inline calc press(calc c, choose chosen) {
-  if (c.failed) return c;
+// An operation chosen: what was waiting worked out first (it may throw).
+[[nodiscard]] inline calc chosen_on(calc c, choose chosen) {
   if (c.pending && c.given) {
-    const outcome result = apply(*c.pending, *c.left, value_of(c.entry));
-    if (!result) return failing(result.error());
-    c.left = *result;
-    c.entry = written(*result);
+    const double result = apply(*c.pending, *c.left, value_of(c.entry));
+    c.left = result;
+    c.entry = written(result);
   } else if (!c.pending) {
     c.left = value_of(c.entry);
   }
@@ -223,8 +234,13 @@ struct percent {};
   return c;
 }
 
-[[nodiscard]] inline calc press(calc c, equals) {
+[[nodiscard]] inline calc press(calc c, choose chosen) {
   if (c.failed) return c;
+  return guarded([&] { return chosen_on(std::move(c), chosen); });
+}
+
+// `=`: the operation waiting, or the last one again (it may throw).
+[[nodiscard]] inline calc equals_on(calc c) {
   double left = 0.0;
   if (c.pending) {
     left = *c.left;
@@ -236,15 +252,19 @@ struct percent {};
     c.fresh = true;
     return c;
   }
-  const outcome result = apply(*c.repeat_op, left, c.repeat_right);
-  if (!result) return failing(result.error());
+  const double result = apply(*c.repeat_op, left, c.repeat_right);
   c.expression = std::format("{} {} {} =", grouped(written(left)), symbol(*c.repeat_op), grouped(written(c.repeat_right)));
-  c.entry = written(*result);
+  c.entry = written(result);
   c.left.reset();
   c.pending.reset();
   c.fresh = true;
   c.given = false;
   return c;
+}
+
+[[nodiscard]] inline calc press(calc c, equals) {
+  if (c.failed) return c;
+  return guarded([&] { return equals_on(std::move(c)); });
 }
 
 [[nodiscard]] inline calc press(calc, clear) { return calc{}; }
@@ -284,15 +304,15 @@ struct percent {};
 
 [[nodiscard]] inline calc press(calc c, percent) {
   if (c.failed) return c;
-  const double typed = value_of(c.entry);
-  const double made = c.pending ? std::visit([&](auto one) { return percent_of(one, *c.left, typed); }, *c.pending)
-                                : typed / 100.0;
-  const outcome result = checked(made);
-  if (!result) return failing(result.error());
-  c.entry = written(*result);
-  c.fresh = true;
-  if (c.pending) c.given = true;
-  return c;
+  return guarded([&] {
+    const double typed = value_of(c.entry);
+    const double made = c.pending ? std::visit([&](auto one) { return percent_of(one, *c.left, typed); }, *c.pending)
+                                  : typed / 100.0;
+    c.entry = written(checked(made));
+    c.fresh = true;
+    if (c.pending) c.given = true;
+    return std::move(c);
+  });
 }
 
 // A key, as an edit of the calculator the page keeps (model::over).

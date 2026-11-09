@@ -10,8 +10,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # skiff.app -- in a browser the page itself, natively the program that
 # writes the page out before the WebAssembly has loaded.
 #
-# CALCULATOR_ENGINE_ONLY builds the engine and its tests alone: nothing is
-# fetched, nothing of skiff is built.
+# CALCULATOR_ENGINE_ONLY builds the engine and its tests alone: nothing of
+# skiff is fetched or built (only googletest, for the tests).
 option(CALCULATOR_ENGINE_ONLY "Only the engine and its tests: no UI, no dependencies" OFF)
 
 # skiff-framework (and skiff and skiff-widgets through it) comes from
@@ -26,10 +26,23 @@ add_library(calculator_engine STATIC)
 target_sources(calculator_engine PUBLIC FILE_SET CXX_MODULES FILES src/engine.cc)
 target_compile_features(calculator_engine PUBLIC cxx_std_26)
 
+# The tests: googletest, as C++ modules (import gtest), as skiff's own.
 if(NOT CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
+  include(${CMAKE_CURRENT_LIST_DIR}/cmake/CPM.cmake)
+  CPMAddPackage(
+    NAME googletest_modules
+    # An archive of the revision, not a clone: nothing of its submodules needed.
+    URL https://github.com/j4niwzis/googletest-modules/archive/706920f1d230f0316d271466d8885735be3e300e.tar.gz
+    OPTIONS
+      "BUILD_GMOCK OFF"
+      "gtest_build_modules ON"
+      "gtest_build_tests OFF"
+      "gtest_build_samples OFF"
+      "INSTALL_GTEST OFF")
   enable_testing()
   add_executable(calculator_engine_test test/engine.cc)
-  target_link_libraries(calculator_engine_test PRIVATE calculator_engine)
+  target_link_libraries(calculator_engine_test PRIVATE calculator_engine gtest gtest_main)
+  set_target_properties(calculator_engine_test PROPERTIES CXX_SCAN_FOR_MODULES ON)
   add_test(NAME engine COMMAND calculator_engine_test)
 endif()
 

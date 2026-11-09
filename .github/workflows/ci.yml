@@ -64,7 +64,7 @@ jobs:
           }
           EOF
 
-      # The engine first, alone: its tests need nothing fetched.
+      # The engine first, alone: its tests need nothing of skiff.
       - name: the engine's tests
         run: |
           cmake -S . -B build/engine -G Ninja \

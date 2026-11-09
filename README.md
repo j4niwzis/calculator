@@ -37,11 +37,11 @@ How it works things out:
 
 | File | What it is |
 | --- | --- |
-| `src/engine.cc` | `calculator.engine`: the calculator's state, one type per key, the operations as a `std::variant` dispatched by overloading, and how numbers are written. Plain C++, no UI. |
+| `src/engine.cc` | `calculator.engine`: the calculator's state, one type per key, the operations as a `std::variant` dispatched by overloading, and how numbers are written. The arithmetic throws `division_by_zero` and `out_of_range`; the keys that compute catch them into the calculator's error state. Plain C++, no UI. |
 | `src/page.cc` | `calculator.page`: the page, a skiff.app tree. The calculator is its one part of the model; each button sends its key, and the key's handler presses it. Also the stylesheet. |
 | `src/main.cc` | The program: `SKIFF_APP(calculator::page, calculator::Hooks)`. |
 | `web/index.html` | The page Emscripten fills in; its script maps the keyboard onto the buttons. |
-| `test/engine.cc` | The engine's tests: key sequences and what the display shows. |
+| `test/engine.cc` | The engine's tests (googletest): key sequences, what the display shows, and what the arithmetic throws. |
 | `test/page_written.cmake` | The page as the native program writes it: the display and every key. |
 | `test/browser.mjs` | The published page in Chromium and Firefox, pressed by mouse and keyboard. |
 
@@ -51,7 +51,7 @@ Requires Clang 23, CMake 4.3.4 or newer, and Ninja. skiff-framework and its
 dependencies are fetched by
 [cmake-everywhere](https://github.com/j4niwzis/cmake-everywhere).
 
-The engine and its tests alone, with nothing fetched:
+The engine and its tests alone (googletest is the only thing fetched):
 
 ```sh
 cmake -S . -B build/engine -G Ninja -DCALCULATOR_ENGINE_ONLY=ON
