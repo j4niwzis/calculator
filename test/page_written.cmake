@@ -6,7 +6,7 @@ if(NOT code EQUAL 0)
   message(FATAL_ERROR "the program failed: ${code}")
 endif()
 file(READ "${OUT}/static.html" page)
-foreach(shown IN ITEMS "data-view=\"Calculator\"" "data-view=\"Display\"" ">0<" ">C<" ">%<" ">=<" ">.<"
+foreach(shown IN ITEMS "data-view=\"Calculator\"" "data-view=\"Display\"" ">0<" ">AC<" ">%<" ">=<" ">.<" ">( )<" ">⌫<"
                        ">0<" ">1<" ">2<" ">3<" ">4<" ">5<" ">6<" ">7<" ">8<" ">9<" "<title>Calculator</title>")
   string(FIND "${page}" "${shown}" at)
   if(at EQUAL -1)

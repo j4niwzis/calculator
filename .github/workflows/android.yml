@@ -1,0 +1,79 @@
+# The calculator on Android, built as mux is: the source-built toolchain
+# (minimal-android-ndk), SDL's NativeActivity fork, the APK packaged without
+# Gradle; Release (the calculator is small), each ABI.
+name: android
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+env:
+  CPM_SOURCE_CACHE: ${{ github.workspace }}/.cache/cpm
+
+jobs:
+  apk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        abi: [arm64-v8a, armeabi-v7a]
+    env:
+      ABI: ${{ matrix.abi }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: setup
+        uses: ./.github/actions/android-setup
+        with:
+          abi: ${{ env.ABI }}
+          token: ${{ github.token }}
+      - uses: actions/cache/restore@v4
+        with:
+          path: |
+            build-android
+            .cache/cpm
+          key: build-android-${{ env.ABI }}-${{ steps.setup.outputs.digest }}-${{ github.sha }}
+          restore-keys: build-android-${{ env.ABI }}-${{ steps.setup.outputs.digest }}-
+      - name: Configure
+        run: |
+          cmake -S . -B build-android -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE="$HOME/.cache/calculator-android-$ABI/cmake/target.cmake" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCALCULATOR_WINDOW=ON \
+            -DCME_BUILD_MACHINE_CXX_COMPILER=clang++-23 \
+            -DCME_BUILD_MACHINE_CXX_FLAGS='-stdlib=libc++ -fno-experimental-new-constant-interpreter'
+      - name: Build
+        run: cmake --build build-android --target calculator-apk
+      - name: Verify package
+        run: |
+          dexdump -c build-android/apk/classes.dex
+          aapt2 dump xmltree --file AndroidManifest.xml build-android/apk/debug/calculator-test-signed.apk \
+            | grep -q 'android:debuggable.*=true'
+          for variant in stripped debug; do
+            zipalign -c 4 "build-android/apk/$variant/calculator-test-signed.apk"
+            java -jar "$HOME/.cache/calculator-android-$ABI/tools/apksigner.jar" verify --verbose \
+              "build-android/apk/$variant/calculator-test-signed.apk"
+          done
+      - uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: |
+            build-android
+            .cache/cpm
+          key: build-android-${{ env.ABI }}-${{ steps.setup.outputs.digest }}-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: calculator-android-${{ env.ABI }}-test-signed-${{ github.sha }}
+          path: build-android/apk/calculator-test-signed.apk
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: calculator-android-${{ env.ABI }}-debug-test-signed-${{ github.sha }}
+          path: build-android/apk/debug/calculator-test-signed.apk
+          if-no-files-found: error
