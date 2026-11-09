@@ -66,6 +66,11 @@ set(CMAKE_MODULE_LINKER_FLAGS_INIT "-fuse-ld=lld -stdlib=libc++ -rtlib=compiler-
 # out of the compiler, and for this toolchain it read none ("Only libc++
 # and libstdc++ are supported").
 set(CMAKE_CXX_STDLIB_MODULES_JSON "${CALCULATOR_SYSROOT}/usr/lib/libc++.modules.json")
+# Everything position-independent, as the Android build has it: the ports
+# cmake-everywhere builds compile with -fPIC, and a target compiled without
+# it had the std module made twice ("Disagreement of the location of the
+# 'std' module").
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 # Static libraries only: a package that could build either builds this one.
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 
