@@ -65,11 +65,13 @@ TEST(Expression, ANewNumberAfterEqualsStartsOver) {
   EXPECT_EQ(expression(keys(digit{1}, plus, digit{1}, equals{}, digit{4})), "");
 }
 
-TEST(Failures, DivisionByZeroThrows) { EXPECT_THROW((void)apply(op::divide{}, rational(1), rational(0)), division_by_zero); }
+TEST(Failures, DivisionByZeroThrows) {
+  EXPECT_THROW((void)apply(op::divide{}, number(rational(1)), number(rational(0))), division_by_zero);
+}
 
 TEST(Failures, AResultTooLargeThrows) {
   const rational big = rational::from_decimal("1" + std::string(20000, '0'));
-  EXPECT_THROW((void)apply(op::multiply{}, big, big), out_of_range);
+  EXPECT_THROW((void)apply(op::multiply{}, number(big), number(big)), out_of_range);
 }
 
 TEST(Failures, WhatEachSays) {
@@ -152,10 +154,10 @@ TEST(Written, SmallWithoutAnExponent) { EXPECT_EQ(written(rational(1) / ten_to(7
 
 TEST(Written, ASmallExponent) { EXPECT_EQ(written(rational(1) / ten_to(30)), "1e-30"); }
 
-TEST(Written, NoNegativeZero) { EXPECT_EQ(written(apply(op::multiply{}, rational(-1), rational(0))), "0"); }
+TEST(Written, NoNegativeZero) { EXPECT_EQ(written(apply(op::multiply{}, number(rational(-1)), number(rational(0)))), "0"); }
 
 TEST(Exact, AHugeNumberPlusOneMinusItself) {
-  EXPECT_EQ(written(apply(op::subtract{}, apply(op::add{}, ten_to(100), rational(1)), ten_to(100))), "1");
+  EXPECT_EQ(written(apply(op::subtract{}, apply(op::add{}, number(ten_to(100)), number(rational(1))), number(ten_to(100)))), "1");
 }
 
 TEST(Exact, AThirdTimesThreeIsOne) { EXPECT_EQ(display(keys(digit{1}, over, digit{3}, times, digit{3}, equals{})), "1"); }
@@ -219,5 +221,82 @@ TEST(Real, ATinyExponential) { EXPECT_EQ(first(exp(real(-50)), 18), "19287498479
 TEST(Real, ALargeExponential) { EXPECT_EQ(first(exp(real(100)), 20), "26881171418161354484e43"); }
 
 TEST(Real, LnOfANegativeNumberThrows) { EXPECT_THROW((void)ln(real(-2)), not_positive); }
+// ---- the symbolic numbers: what stays exact ----------------------------------
+
+number q(std::int64_t n, std::int64_t d = 1) { return number(rational(n) / rational(d)); }
+const number pi_number(rational(1), factor::pi{});
+
+TEST(Symbolic, PiPlusThreePiIsFourPi) { EXPECT_EQ(pi_number + q(3) * pi_number, number(rational(4), factor::pi{})); }
+
+TEST(Symbolic, TheSquareRootOfEightIsTwoRootsOfTwo) {
+  EXPECT_EQ(sqrt(q(8)), number(rational(2), factor::sqrt_of{rational(2)}));
+}
+
+TEST(Symbolic, RootTwoTimesRootTwoIsTwo) { EXPECT_EQ(sqrt(q(2)) * sqrt(q(2)), q(2)); }
+
+TEST(Symbolic, SinOfASixthOfPiIsAHalf) { EXPECT_EQ(sin(q(1, 6) * pi_number), q(1, 2)); }
+
+TEST(Symbolic, CosOfAThirdOfPiIsAHalf) { EXPECT_EQ(cos(q(1, 3) * pi_number), q(1, 2)); }
+
+TEST(Symbolic, SinOfAQuarterOfPiIsHalfRootTwo) {
+  EXPECT_EQ(sin(q(1, 4) * pi_number), number(rational(1) / rational(2), factor::sqrt_of{rational(2)}));
+}
+
+TEST(Symbolic, LnFourLessTwiceLnTwoIsZero) { EXPECT_EQ(ln(q(4)) - q(2) * ln(q(2)), number()); }
+
+TEST(Symbolic, ExpOfLnTwoIsTwo) { EXPECT_EQ(exp(ln(q(2))), q(2)); }
+
+TEST(Symbolic, LogOfAThousandIsThree) { EXPECT_EQ(log10(q(1000)), q(3)); }
+
+TEST(Symbolic, AtanOfOneIsAQuarterOfPi) { EXPECT_EQ(atan(q(1)), number(rational(1) / rational(4), factor::pi{})); }
+
+TEST(Symbolic, AsinOfHalfRootThreeIsAThirdOfPi) {
+  EXPECT_EQ(asin(number(rational(1) / rational(2), factor::sqrt_of{rational(3)})), number(rational(1) / rational(3), factor::pi{}));
+}
+
+TEST(Symbolic, TanOfHalfPiIsNotDefined) { EXPECT_THROW((void)tan(q(1, 2) * pi_number), not_defined); }
+
+TEST(Symbolic, TheSquareRootOfMinusOneIsNotDefined) { EXPECT_THROW((void)sqrt(q(-1)), not_defined); }
+
+TEST(Symbolic, TwoToTheTenth) { EXPECT_EQ(pow(q(2), q(10)), q(1024)); }
+
+TEST(Symbolic, NineToTheHalf) { EXPECT_EQ(pow(q(9), q(1, 2)), q(3)); }
+
+// ---- the scientific keys ------------------------------------------------------
+
+const of sine{fn::sine{}};
+const of square_root{fn::square_root{}};
+
+TEST(Scientific, PiShownWithEveryDigitRight) { EXPECT_EQ(display(keys(put{constant::pi{}})), "3.1415926535897932384…"); }
+
+TEST(Scientific, MoreDigitsOfPi) {
+  EXPECT_EQ(display(keys(put{constant::pi{}}, more_digits{})), "3.141592653589793238462643383279502884197…");
+}
+
+TEST(Scientific, TheSquareRootOfTwo) { EXPECT_EQ(display(keys(digit{2}, square_root)), "1.4142135623730950488…"); }
+
+TEST(Scientific, RootTwoSquaredIsTwo) { EXPECT_EQ(display(keys(digit{2}, square_root, of{fn::square{}})), "2"); }
+
+TEST(Scientific, TwoToTheTenthByKeys) {
+  EXPECT_EQ(display(keys(digit{2}, choose{op::power{}}, digit{1}, digit{0}, equals{})), "1,024");
+}
+
+TEST(Scientific, SinOfThirtyDegrees) { EXPECT_EQ(display(keys(switch_angles{}, digit{3}, digit{0}, sine)), "0.5"); }
+
+TEST(Scientific, SinOfOneRadian) { EXPECT_EQ(display(keys(digit{1}, sine)), "0.84147098480789650665…"); }
+
+TEST(Scientific, AsinOfAHalfInDegrees) {
+  EXPECT_EQ(display(keys(switch_angles{}, point{}, digit{5}, of{fn::arcsine{}})), "30");
+}
+
+TEST(Scientific, ExpOfLnTwoByKeys) { EXPECT_EQ(display(keys(digit{2}, of{fn::natural_log{}}, of{fn::exponential{}})), "2"); }
+
+TEST(Scientific, TheReciprocalOfZero) { EXPECT_EQ(display(keys(digit{0}, of{fn::reciprocal{}})), "Cannot divide by zero"); }
+
+TEST(Scientific, TheLnOfANegativeNumber) {
+  EXPECT_EQ(display(keys(digit{2}, negate{}, of{fn::natural_log{}})), "Not defined");
+}
+
+TEST(Scientific, TheAnglesShown) { EXPECT_EQ(angles(keys(switch_angles{})), "DEG"); }
 }  // namespace
 

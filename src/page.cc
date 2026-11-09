@@ -38,6 +38,8 @@ template <class Key> auto key_button(std::string label, Key key) {
 inline auto display_lines() {
   return SKIFF_NAMED(Display,
                      column(vbox(4.0f, {.fillX = true, .autoSize = scene::axes::kY, .padding = {12.0f, 8.0f, 12.0f, 8.0f}}),
+                            styled({.alignSelf = scene::align::kStart},
+                                   text_for<calc>([](const calc &c) { return std::string(angles(c)); }, Text("RAD", 12.0f, colour::kDim))),
                             styled({.minHeight = 22.0f, .alignSelf = scene::align::kEnd},
                                    text_for<calc>([](const calc &c) { return expression(c); }, Text(std::string(), 18.0f, colour::kDim))),
                             styled({.minHeight = 52.0f, .alignSelf = scene::align::kEnd},
@@ -56,11 +58,20 @@ auto page() {
   return SKIFF_NAMED(Calculator,
       state<calc>(
           handlers(on_key<digit>(), on_key<point>(), on_key<choose>(), on_key<equals>(), on_key<clear>(), on_key<backspace>(),
-                   on_key<negate>(), on_key<percent>()),
+                   on_key<negate>(), on_key<percent>(), on_key<put>(), on_key<of>(), on_key<switch_angles>(),
+                   on_key<more_digits>()),
                   column(vbox(10.0f, {.fillX = true, .autoSize = scene::axes::kY, .maxWidth = 380.0f,
                                       .alignSelf = scene::align::kMiddle, .padding = {16.0f, 16.0f, 16.0f, 16.0f},
                                       .cornerRadius = 20.0f, .background = colour::kBody}),
                          display_lines(),
+                         key_row(key_button("DEG", switch_angles{}), key_button("\u03c0", put{constant::pi{}}),
+                                 key_button("e", put{constant::e{}}), key_button("\u22ef", more_digits{})),
+                         key_row(key_button("sin", of{fn::sine{}}), key_button("cos", of{fn::cosine{}}),
+                                 key_button("tan", of{fn::tangent{}}), key_button("x\u02b8", choose{op::power{}})),
+                         key_row(key_button("asin", of{fn::arcsine{}}), key_button("acos", of{fn::arccosine{}}),
+                                 key_button("atan", of{fn::arctangent{}}), key_button("1/x", of{fn::reciprocal{}})),
+                         key_row(key_button("ln", of{fn::natural_log{}}), key_button("log", of{fn::common_log{}}),
+                                 key_button("\u221a", of{fn::square_root{}}), key_button("x\u00b2", of{fn::square{}})),
                          key_row(key_button("C", clear{}), key_button("⌫", backspace{}), key_button("%", percent{}),
                                       key_button("÷", choose{op::divide{}})),
                          key_row(key_button("7", digit{7}), key_button("8", digit{8}), key_button("9", digit{9}),
@@ -83,6 +94,7 @@ html,body{margin:0;min-height:100%;background:#0f1419}
 [data-view=Calculator]{width:100%;max-width:380px;margin:0 auto;border-radius:20px;box-shadow:0 20px 50px rgba(0,0,0,.45)}
 [data-view=Display]>*{text-align:right;word-break:break-all;max-width:100%}
 [data-view=Calculator] .skiff-button{flex:1 1 0;min-width:0;height:64px;border:0!important;border-radius:14px!important;font:500 24px/1 inherit!important;background:#2a3540!important;color:#e8eef2!important;cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent;transition:filter .08s}
+[data-view=Calculator] .skiff-button{font-size:20px!important}
 [data-view=Calculator] .skiff-button:last-child{background:#e18a32!important;color:#fff!important}
 .skiff-button:hover{filter:brightness(1.15)}
 .skiff-button:active,.skiff-button.pressed{filter:brightness(.85)}

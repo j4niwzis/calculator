@@ -16,6 +16,14 @@ then takes it over.
 | Change sign | `±` | `F9` |
 | Delete the last digit | `⌫` | `Backspace` |
 | Clear | `C` | `Escape` or `Delete` |
+| π, e | `π` `e` | `p` `e` |
+| Square root, square, reciprocal | `√` `x²` `1/x` | `r` `q` `i` |
+| Power | `xʸ` | `^` |
+| sin, cos, tan | `sin` `cos` `tan` | `s` `c` `t` |
+| asin, acos, atan | `asin` `acos` `atan` | `S` `C` `T` |
+| ln, log₁₀ | `ln` `log` | `l` `g` |
+| Radians / degrees | `DEG` | `d` |
+| More digits of the result | `⋯` | `m` |
 
 How it works things out:
 

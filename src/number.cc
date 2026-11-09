@@ -330,6 +330,12 @@ class rational {
   [[nodiscard]] std::size_t bits() const noexcept { return num_.bits() + den_.bits(); }
 
   friend bool operator==(const rational &, const rational &) = default;
+  // Ordered by value: the signs first, then a/b against c/d as a d against c b.
+  friend std::strong_ordering operator<=>(const rational &a, const rational &b) {
+    if (a.negative_ != b.negative_) return a.negative_ ? std::strong_ordering::less : std::strong_ordering::greater;
+    const std::strong_ordering magnitudes = a.num_ * b.den_ <=> b.num_ * a.den_;
+    return a.negative_ ? 0 <=> magnitudes : magnitudes;
+  }
 
   [[nodiscard]] rational operator-() const { return rational(!negative_, num_, den_); }
   friend rational operator+(const rational &a, const rational &b) {
