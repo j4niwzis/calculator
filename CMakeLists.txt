@@ -39,6 +39,9 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
       "gtest_build_tests OFF"
       "gtest_build_samples OFF"
       "INSTALL_GTEST OFF")
+  # Its module compiled as C++26, as everything importing it is: a module
+  # file made under another standard is refused (C++26 was disabled in it).
+  set_target_properties(gtest gtest_main PROPERTIES CXX_STANDARD 26)
   enable_testing()
   add_executable(calculator_engine_test test/engine.cc)
   target_link_libraries(calculator_engine_test PRIVATE calculator_engine gtest gtest_main)
