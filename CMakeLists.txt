@@ -89,6 +89,13 @@ if(NOT CALCULATOR_ENGINE_ONLY)
   option(CALCULATOR_WINDOW "The calculator as an app in a window (SDL, Skia)" OFF)
   set(SKIFF_FRAMEWORK_CANVAS ${CALCULATOR_WINDOW} CACHE BOOL "skiff.app with the scene" FORCE)
   set(SKIFF_FRAMEWORK_WINDOW ${CALCULATOR_WINDOW} CACHE BOOL "skiff.platform.window" FORCE)
+  # The window draws skiff's scene with Skia itself -- not skiff's stand-in
+  # for Skia's types, which draws nothing (a build directory first made for
+  # the page keeps it in its cache).
+  if(CALCULATOR_WINDOW)
+    set(SKIFF_UI ON CACHE BOOL "skiff.ui: the scene" FORCE)
+    set(SKIFF_SKIA ON CACHE BOOL "skiff on Skia" FORCE)
+  endif()
   cme_find_package(skiff-framework 0.1.0 REQUIRED)
 
   add_library(calculator_ui STATIC)
