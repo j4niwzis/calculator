@@ -58,7 +58,7 @@ if(NOT CALCULATOR_ENGINE_ONLY)
     VERSION 0.1.0)
   cme_declare_port(NAME skiff-framework PROVIDES skiff-framework skiff_framework
     GITHUB_REPOSITORY j4niwzis/skiff-framework
-    GIT_TAG ede655260718ac84beea6b31ede7d0df6390f95f
+    GIT_TAG 5077d3a3dbcff2c5738a480e02133e8668d2ea21
     VERSION 0.1.0)
   # Two builds of one tree: the page (under Emscripten, and natively the
   # program that writes it out), with no scene and no window; and the app in
