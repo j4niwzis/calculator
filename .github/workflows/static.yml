@@ -56,6 +56,18 @@ jobs:
           cmake -S tools/force-inline -B build/force-inline -G Ninja -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_CXX_COMPILER=clang++-23 -DLLVM_DIR=/usr/lib/llvm-23/lib/cmake/llvm
           cmake --build build/force-inline
+      # The build directory and the sources, kept between runs as the
+      # Android job keeps its own: restored from the newest of this compiler
+      # and sysroot, saved whatever the build came to -- a run that failed
+      # far in still leaves everything it compiled for the next.
+      - uses: actions/cache/restore@v4
+        with:
+          path: |
+            build/static
+            .cache/cpm
+            ~/.cache/cmake-everywhere
+          key: build-static-${{ steps.compiler.outputs.id }}-${{ hashFiles('.github/scripts/musl-sysroot.sh') }}-${{ github.sha }}
+          restore-keys: build-static-${{ steps.compiler.outputs.id }}-${{ hashFiles('.github/scripts/musl-sysroot.sh') }}-
       - name: Configure
         run: |
           cmake -S . -B build/static -G Ninja \
@@ -68,6 +80,14 @@ jobs:
             -DCME_STORE_ENABLED=ON -DCME_SOURCES_ENABLED=ON
       - name: Build
         run: cmake --build build/static --target calculator-window -j2
+      - uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: |
+            build/static
+            .cache/cpm
+            ~/.cache/cmake-everywhere
+          key: build-static-${{ steps.compiler.outputs.id }}-${{ hashFiles('.github/scripts/musl-sysroot.sh') }}-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
       - name: What was made
         run: |
           file build/static/calculator-window
