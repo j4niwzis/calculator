@@ -7,47 +7,44 @@ then takes it over.
 
 ## Using it
 
+It works as Android's calculator does: you type the whole formula, its
+result shows under it as you type, and `=` makes the result the number.
+
 | Key | Mouse | Keyboard |
 | --- | --- | --- |
 | Digits, decimal point | `0`–`9`, `.` | `0`–`9`, `.` or `,` |
 | Add, subtract, multiply, divide | `+` `−` `×` `÷` | `+` `-` `*` (or `x`) `/` |
-| Work it out | `=` | `Enter` or `=` |
-| Percent | `%` | `%` |
-| Change sign | `±` | `F9` |
-| Delete the last digit | `⌫` | `Backspace` |
-| Clear | `C` | `Escape` or `Delete` |
+| Parentheses (one key: opens, or closes one that is open) | `( )` | `(` or `)` |
+| Power, factorial, percent | `^` `!` `%` | `^` `!` `%` |
+| Square root, square | `√` `x²` | `r` |
 | π, e | `π` `e` | `p` `e` |
-| Square root, square, reciprocal | `√` `x²` `1/x` | `r` `q` `i` |
-| Power | `xʸ` | `^` |
-| sin, cos, tan | `sin` `cos` `tan` | `s` `c` `t` |
-| asin, acos, atan | `asin` `acos` `atan` | `S` `C` `T` |
-| ln, log₁₀ | `ln` `log` | `l` `g` |
-| Radians / degrees | `DEG` | `d` |
-| More digits of the result | `⋯` | `m` |
+| sin, cos, tan (`INV`: their inverses) | `sin` `cos` `tan` | `s` `c` `t` |
+| ln, log₁₀ (`INV`: eˣ, 10ˣ) | `ln` `log` | `l` `g` |
+| Radians / degrees | `RAD` / `DEG` | |
+| Work it out | `=` | `Enter` or `=` |
+| Delete the last digit or part | `⌫` | `Backspace` |
+| Clear | `AC` | `Escape` or `Delete` |
+
+The scientific keys show one row folded; the chevron opens all three.
 
 How it works things out:
 
-- **Left to right, as typed**: `2 + 3 × 4 =` is 20, as on a pocket calculator.
-- **`=` again repeats the last operation**: `2 + 3 = =` is 8. `5 + =` is 10.
-- **Percent** takes a percentage of the left side beside `+` and `−`
-  (`200 + 5 % =` is 210) and is a hundredth beside `×` and `÷`
-  (`50 × 10 % =` is 5).
-- **Choosing another operation** before typing the right side replaces the
-  first one: `9 + − 4 =` is 5.
-- **Exact.** Every number is a rational of unbounded integers, not a
-  floating-point approximation, and every key keeps it one, so every result
-  is exact: `0.1 + 0.2` is `0.3`, `10^100 + 1 − 10^100` is `1`, and
-  `1 ÷ 3 × 3` is `1`. (This is the rational part of Hans Boehm's arithmetic
-  for Android's calculator.)
-- **Every digit shown is correct.** A result is shown with up to 20
-  significant digits. If it goes on (`1 ÷ 3`), its digits are cut, never
-  rounded, and followed by `…`: `0.33333333333333333333…`. The value kept
-  is still exact, so `1 ÷ 3 = × 3 =` is `1`. Very large or small results use
-  an exponent (`1e30`, `1.2345678901234567890…e26`, `1e-30`).
-- **Entries** take up to 20 digits. The display groups them by thousands.
-- **Errors**: dividing by zero, and a result too large to keep (over 2^17
-  bits, about 39,000 digits), are shown in place of the number. Operations
-  are refused until a new number is typed or `C` is pressed.
+- **Precedence**, as written: `2+3×4` is 14, `2^3^2` is 512, `−2^2` is −4.
+  Two things side by side are multiplied: `2π`, `3(4+1)`. A parenthesis
+  left open is closed at the end.
+- **Exact.** Every number is kept as Hans Boehm's calculator for Android
+  keeps it: a rational of unbounded integers where it is one, so
+  `0.1 + 0.2` is `0.3`, `10^100 + 1 − 10^100` is `1` and `1 ÷ 3 × 3` is `1`;
+  a rational times π, a root, a power of e, a logarithm or a trigonometric
+  value where it is not (π + 3π is 4π, √8 is 2√2, sin(π/6) is ½,
+  ln 4 − 2 ln 2 is 0); and a constructive real, computed to whatever
+  precision is asked, where nothing else fits.
+- **Every digit shown is correct.** The result under the formula has 15
+  significant digits, the number after `=` 60; a number that goes on is
+  cut, never rounded, and ends in `…`. The value kept is exact, so what is
+  done next with it is exact too.
+- **Errors**: dividing by zero, a value too large to keep, and what has no
+  value (√−1, ln 0, tan 90°, 2.5!) are said under the formula after `=`.
 
 ## How it is made
 
