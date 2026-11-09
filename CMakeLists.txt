@@ -69,7 +69,14 @@ if(NOT CALCULATOR_ENGINE_ONLY)
   set(SKIFF_FRAMEWORK_CANVAS ${CALCULATOR_WINDOW} CACHE BOOL "skiff.app with the scene" FORCE)
   set(SKIFF_FRAMEWORK_WINDOW ${CALCULATOR_WINDOW} CACHE BOOL "skiff.platform.window" FORCE)
   # On Android (the source-built toolchain mux uses): SDL's NativeActivity
-  # fork, said before anything asks for SDL.
+  # fork, said before anything asks for SDL. That toolchain says Linux for
+  # CMAKE_SYSTEM_NAME and gives MANDK_ROOT: an Android build is said so here,
+  # before any port reads ANDROID -- else the fork was declared after the
+  # registry's SDL had been, and skiff-framework took the build for desktop
+  # Linux.
+  if(MANDK_ROOT AND NOT ANDROID)
+    set(ANDROID TRUE)
+  endif()
   if(ANDROID)
     include(${CMAKE_CURRENT_LIST_DIR}/cmake/android.cmake)
   endif()
