@@ -55,7 +55,9 @@ if(NOT CALCULATOR_ENGINE_ONLY)
     GIT_TAG a90c69292bddceef979b735c48ac18ab5b088c87
     VERSION 0.1.0)
   # The page alone: the browser's own elements, no canvas (and none of
-  # skiff's scene).
+  # skiff's scene). Forced: a build directory configured with the canvas
+  # keeps the option in its cache, whatever the default is now.
+  set(SKIFF_FRAMEWORK_CANVAS OFF CACHE BOOL "skiff.app with the canvas" FORCE)
   cme_find_package(skiff-framework 0.1.0 REQUIRED)
 
   add_library(calculator_ui STATIC)
