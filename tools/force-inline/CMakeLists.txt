@@ -3,7 +3,9 @@
 # static build's lld is: llvm-23-dev.
 cmake_minimum_required(VERSION 3.20)
 project(force_inline CXX)
-find_package(LLVM 23 REQUIRED CONFIG)
+# No version asked: LLVM's config takes only its own major.minor; LLVM_DIR
+# says which (the workflow's llvm-23-dev).
+find_package(LLVM REQUIRED CONFIG)
 add_library(ForceInline MODULE ForceInline.cpp)
 target_include_directories(ForceInline SYSTEM PRIVATE ${LLVM_INCLUDE_DIRS})
 separate_arguments(force_inline_definitions NATIVE_COMMAND "${LLVM_DEFINITIONS}")
