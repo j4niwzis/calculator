@@ -451,10 +451,24 @@ struct root_test {
   return number(rational(1), factor::other{atan(real_of(x))});
 }
 
+// A power whose exact value would be too large to keep, refused before it
+// is worked out.
+struct too_large : std::exception {
+  [[nodiscard]] const char *what() const noexcept override { return "Value too large"; }
+};
+
 // x^y: an integer power by squaring (exact where the factors multiply by
 // rule); a half power a square root; a positive base otherwise e^(y ln x).
+// A rational to an integer power stays exact, whatever the power -- and is
+// refused where its size, its base's bits times the power, is past what is
+// kept.
 [[nodiscard]] inline number pow(const number &x, const number &y) {
-  if (const auto k = exact(y).and_then([](const rational &q) { return small_integer(q); }); k && std::abs(*k) <= 4096) {
+  const auto k = exact(y).and_then([](const rational &q) { return small_integer(q); });
+  if (k)
+    if (const auto base = exact(x); base && !base->zero() && base->bits() > 2 &&
+                                     static_cast<double>(base->bits()) * static_cast<double>(std::abs(*k)) > double(1 << 18))
+      throw too_large{};
+  if (k && (exact(x) || std::abs(*k) <= 4096)) {
     if (*k == 0) return number(rational(1));
     if (zero(x)) {
       if (*k < 0) throw division_by_zero_t{};
