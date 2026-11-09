@@ -134,6 +134,12 @@ if(NOT CALCULATOR_ENGINE_ONLY)
     else()
       add_executable(calculator-window src/main_window.cc)
       target_link_libraries(calculator-window PRIVATE calculator_ui skiff::app_window)
+      # The static build (cmake/musl-static.cmake): every direct call that is
+      # not recursion inlined at this link -- this one only, not the feature
+      # tests' nor the ports' (tools/force-inline).
+      if(CALCULATOR_FORCE_INLINE_PLUGIN)
+        target_link_options(calculator-window PRIVATE "LINKER:--load-pass-plugin=${CALCULATOR_FORCE_INLINE_PLUGIN}")
+      endif()
       set_target_properties(calculator-window PROPERTIES CXX_STANDARD 26 CXX_SCAN_FOR_MODULES ON)
     endif()
   else()

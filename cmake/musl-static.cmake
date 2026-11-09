@@ -27,10 +27,7 @@ endif()
 # Said again in every try_compile and in every port cmake-everywhere
 # configures on its own.
 set(ENV{CALCULATOR_SYSROOT} "${CALCULATOR_SYSROOT}")
-if(CALCULATOR_FORCE_INLINE_PLUGIN)
-  set(ENV{CALCULATOR_FORCE_INLINE_PLUGIN} "${CALCULATOR_FORCE_INLINE_PLUGIN}")
-endif()
-list(APPEND CMAKE_TRY_COMPILE_PLATFORM_VARIABLES CALCULATOR_SYSROOT CALCULATOR_FORCE_INLINE_PLUGIN)
+list(APPEND CMAKE_TRY_COMPILE_PLATFORM_VARIABLES CALCULATOR_SYSROOT)
 
 set(calculator_triple x86_64-unknown-linux-musl)
 set(calculator_llvm /usr/lib/llvm-23/bin)
@@ -51,9 +48,9 @@ set(CMAKE_C_FLAGS_INIT "${calculator_common}")
 set(CMAKE_ASM_FLAGS_INIT "-resource-dir=${CALCULATOR_SYSROOT}/clang-resource")
 set(CMAKE_CXX_FLAGS_INIT "${calculator_common} -stdlib=libc++")
 set(calculator_link "-static -fuse-ld=lld -stdlib=libc++ -rtlib=compiler-rt -unwindlib=libunwind -Wl,--lto-O3")
-if(CALCULATOR_FORCE_INLINE_PLUGIN)
-  string(APPEND calculator_link " -Wl,--load-pass-plugin=${CALCULATOR_FORCE_INLINE_PLUGIN}")
-endif()
+# The ForceInline plugin is not here: every feature test CMake and the
+# ports link would run it -- the calculator's own link loads it
+# (CMakeLists.txt, CALCULATOR_FORCE_INLINE_PLUGIN).
 set(CMAKE_EXE_LINKER_FLAGS_INIT "${calculator_link}")
 set(CMAKE_SHARED_LINKER_FLAGS_INIT "-fuse-ld=lld -stdlib=libc++ -rtlib=compiler-rt -unwindlib=libunwind")
 set(CMAKE_MODULE_LINKER_FLAGS_INIT "-fuse-ld=lld -stdlib=libc++ -rtlib=compiler-rt -unwindlib=libunwind")
