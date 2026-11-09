@@ -21,11 +21,14 @@ jobs:
       - uses: actions/checkout@v4
       - name: Space and swap for whole-program optimisation
         run: CALCULATOR_SWAP_GB=48 bash .github/scripts/memory.sh
+      # libwayland-dev: the build machine's wayland-scanner, which wayland's
+      # own cross build (for musl) runs to write its protocol code -- a tool
+      # of this machine's, not a library of the program's.
       - name: Host tools
         run: |
           sudo apt-get update
           sudo apt-get install -y ninja-build meson python3 nasm pkg-config perl gperf bison flex \
-            curl lsb-release software-properties-common gnupg file generate-ninja
+            curl lsb-release software-properties-common gnupg file generate-ninja libwayland-dev
           curl -fsSL https://apt.llvm.org/llvm.sh -o /tmp/llvm.sh
           sudo bash /tmp/llvm.sh 23
           sudo apt-get install -y lld-23 llvm-23 llvm-23-dev libclang-rt-23-dev
