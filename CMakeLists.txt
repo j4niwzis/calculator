@@ -75,11 +75,11 @@ if(NOT CALCULATOR_ENGINE_ONLY)
   # both backends, which the calculator's keys are drawn by.
   cme_declare_port(NAME skiff-widgets PROVIDES skiff-widgets skiff_widgets
     GITHUB_REPOSITORY j4niwzis/skiff-widgets
-    GIT_TAG 0a784229c6075ada818ce5e76e0a30370fc3cb56
+    GIT_TAG b9ab2f347c704a5702f7a51f1376d88e9d9db870
     VERSION 0.1.0)
   cme_declare_port(NAME skiff-framework PROVIDES skiff-framework skiff_framework
     GITHUB_REPOSITORY j4niwzis/skiff-framework
-    GIT_TAG 5077d3a3dbcff2c5738a480e02133e8668d2ea21
+    GIT_TAG 8bded79705a6e3f94ecbf032b4c27434cc960a45
     VERSION 0.1.0)
   # Two builds of one tree: the page (under Emscripten, and natively the
   # program that writes it out), with no scene and no window; and the app in
