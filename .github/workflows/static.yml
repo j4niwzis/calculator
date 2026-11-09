@@ -24,7 +24,7 @@ jobs:
       - name: Host tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y ninja-build meson python3 nasm pkg-config perl gperf bison flex \
+          sudo apt-get install -y ninja-build meson python3 nasm pkg-config perl gperf bison flex time \
             curl lsb-release software-properties-common gnupg file generate-ninja
           curl -fsSL https://apt.llvm.org/llvm.sh -o /tmp/llvm.sh
           sudo bash /tmp/llvm.sh 23
@@ -78,8 +78,25 @@ jobs:
             -DCALCULATOR_WINDOW=ON \
             -DCME_SYSTEM=NEVER \
             -DCME_STORE_ENABLED=ON -DCME_SOURCES_ENABLED=ON
-      - name: Build
-        run: cmake --build build/static --target calculator-window -j2
+      # Everything but the program's own link, and the cache saved: the
+      # link is one process holding the whole program, and when it fails
+      # (or the runner goes with it) nothing compiled is lost.
+      - name: Build everything but the link
+        run: cmake --build build/static --target calculator_window_program -j2
+      - uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: |
+            build/static
+            .cache/cpm
+            ~/.cache/cmake-everywhere
+          key: build-static-${{ steps.compiler.outputs.id }}-${{ hashFiles('.github/scripts/musl-sysroot.sh') }}-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}-compiled
+      - name: Link (full LTO, ForceInline), its peak memory said
+        run: |
+          set -o pipefail
+          free -g
+          /usr/bin/time -v cmake --build build/static --target calculator-window -j1 2>&1 | tee build/link.log
+          grep -E "Maximum resident|Elapsed" build/link.log || true
       - uses: actions/cache/save@v4
         if: always()
         with:
