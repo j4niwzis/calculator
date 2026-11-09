@@ -20,7 +20,7 @@ if(NOT CALCULATOR_ENGINE_ONLY AND NOT COMMAND cme_declare_port AND NOT CMAKE_PRO
   set(CMAKE_PROJECT_TOP_LEVEL_INCLUDES ${CMAKE_CURRENT_LIST_DIR}/cmake/get_cme.cmake)
 endif()
 
-project(calculator VERSION 1.0.0 LANGUAGES CXX)
+project(calculator VERSION 1.0.0 LANGUAGES C CXX)
 
 add_library(calculator_engine STATIC)
 target_sources(calculator_engine PUBLIC FILE_SET CXX_MODULES FILES src/number.cc src/real.cc src/symbolic.cc src/engine.cc)
