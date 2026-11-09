@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f1419">
+<meta name="color-scheme" content="dark">
+<title>Calculator</title>
+<meta name="description" content="A calculator, written in C++ with skiff.">
+</head>
+<body>
+<div id="skiff">@@SKIFF-PRERENDER@@</div>
+@@SKIFF-STATE@@
+<script>
+// The keyboard presses the calculator's own buttons, found by their labels:
+// digits as themselves; the operations by their usual keys.
+(() => {
+  const labels = {
+    '.': '.', ',': '.', '+': '+', '-': '\u2212', '*': '\u00d7', 'x': '\u00d7', '/': '\u00f7',
+    '%': '%', '=': '=', 'Enter': '=', 'Backspace': '\u232b', 'Escape': 'C', 'Delete': 'C', 'F9': '\u00b1',
+  };
+  document.addEventListener('keydown', (event) => {
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
+    const label = /^[0-9]$/.test(event.key) ? event.key : labels[event.key];
+    if (label === undefined) return;
+    const button = [...document.querySelectorAll('#skiff .skiff-button')].find((one) => one.textContent === label);
+    if (!button) return;
+    // Enter on a focused button would press it as well.
+    event.preventDefault();
+    button.click();
+    button.classList.add('pressed');
+    setTimeout(() => button.classList.remove('pressed'), 120);
+  });
+})();
+</script>
+<script>var Module={print:function(o){console.log(o)},printErr:function(o){console.warn(o)}}</script>
+{{{ SCRIPT }}}
+</body>
+</html>

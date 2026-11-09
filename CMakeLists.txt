@@ -1,0 +1,60 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+cmake_minimum_required(VERSION 4.3.4 FATAL_ERROR)
+
+include(${CMAKE_CURRENT_LIST_DIR}/cmake/import-std.cmake)
+set(CMAKE_CXX_STANDARD 26)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+# The calculator: its engine (src/engine.cc), plain C++ with no dependency,
+# and the app (src/page.cc, src/main.cc), a program of skiff-framework's
+# skiff.app -- in a browser the page itself, natively the program that
+# writes the page out before the WebAssembly has loaded.
+#
+# CALCULATOR_ENGINE_ONLY builds the engine and its tests alone: nothing is
+# fetched, nothing of skiff is built.
+option(CALCULATOR_ENGINE_ONLY "Only the engine and its tests: no UI, no dependencies" OFF)
+
+# skiff-framework (and skiff and skiff-widgets through it) comes from
+# cmake-everywhere, at the revision named below.
+if(NOT CALCULATOR_ENGINE_ONLY AND NOT COMMAND cme_declare_port AND NOT CMAKE_PROJECT_TOP_LEVEL_INCLUDES)
+  set(CMAKE_PROJECT_TOP_LEVEL_INCLUDES ${CMAKE_CURRENT_LIST_DIR}/cmake/get_cme.cmake)
+endif()
+
+project(calculator VERSION 1.0.0 LANGUAGES CXX)
+
+add_library(calculator_engine STATIC)
+target_sources(calculator_engine PUBLIC FILE_SET CXX_MODULES FILES src/engine.cc)
+target_compile_features(calculator_engine PUBLIC cxx_std_26)
+
+if(NOT CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
+  enable_testing()
+  add_executable(calculator_engine_test test/engine.cc)
+  target_link_libraries(calculator_engine_test PRIVATE calculator_engine)
+  add_test(NAME engine COMMAND calculator_engine_test)
+endif()
+
+if(NOT CALCULATOR_ENGINE_ONLY)
+  cme_declare_port(NAME skiff-framework PROVIDES skiff-framework skiff_framework
+    GITHUB_REPOSITORY j4niwzis/skiff-framework
+    GIT_TAG a90c69292bddceef979b735c48ac18ab5b088c87
+    VERSION 0.1.0)
+  # The canvas feature, as skiff's own site builds it: the configuration the
+  # framework is checked in, in a browser and natively.
+  cme_find_package(skiff-framework 0.1.0 COMPONENTS canvas REQUIRED)
+
+  add_library(calculator_ui STATIC)
+  target_sources(calculator_ui PUBLIC FILE_SET CXX_MODULES FILES src/page.cc)
+  target_link_libraries(calculator_ui PUBLIC calculator_engine skiff::framework)
+
+  add_executable(calculator src/main.cc)
+  target_link_libraries(calculator PRIVATE calculator_ui)
+  skiff_app(calculator SHELL ${CMAKE_CURRENT_SOURCE_DIR}/web/index.html)
+
+  # Natively: the page written out, and read back -- the display and every
+  # key on it.
+  if(NOT CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
+    add_test(NAME page_written
+      COMMAND ${CMAKE_COMMAND} -DPROGRAM=$<TARGET_FILE:calculator> -DOUT=${CMAKE_CURRENT_BINARY_DIR}/page-test
+              -P ${CMAKE_CURRENT_SOURCE_DIR}/test/page_written.cmake)
+  endif()
+endif()

@@ -1,0 +1,230 @@
+# The calculator, built, checked and published.
+#
+# Twice from one source: under Emscripten, the page itself; natively, the
+# engine's tests and the program that writes the page out -- the copy a
+# browser shows before the WebAssembly has loaded. Then the page is pressed
+# in real browsers, and GitHub Pages serves it.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      # Clang 23 and the distribution's libstdc++, for the native program.
+      - name: clang 23
+        run: |
+          sudo apt-get update || true
+          sudo apt-get install -y ninja-build python3 pkg-config \
+            lsb-release software-properties-common gnupg curl
+          curl -fsSL https://apt.llvm.org/llvm.sh -o /tmp/llvm.sh
+          chmod +x /tmp/llvm.sh
+          sudo /tmp/llvm.sh 23 all
+          echo /usr/lib/llvm-23/bin >> "$GITHUB_PATH"
+
+      - name: cmake
+        run: |
+          version=4.3.4
+          curl -sSL -o cmake.tar.gz \
+            "https://github.com/Kitware/CMake/releases/download/v${version}/cmake-${version}-linux-x86_64.tar.gz"
+          sudo tar xzf cmake.tar.gz -C /opt
+          echo "/opt/cmake-${version}-linux-x86_64/bin" >> "$GITHUB_PATH"
+
+      - name: what import std reads from libstdc++
+        run: |
+          std=$(ls /usr/include/c++/*/bits/std.cc | sort -V | tail -1)
+          cat > /tmp/libstdc++.modules.json <<EOF
+          {
+            "version": 1,
+            "revision": 1,
+            "modules": [
+              { "logical-name": "std", "source-path": "$std",
+                "is-std-library": true },
+              { "logical-name": "std.compat",
+                "source-path": "${std%std.cc}std.compat.cc",
+                "is-std-library": true }
+            ]
+          }
+          EOF
+
+      # The engine first, alone: its tests need nothing fetched.
+      - name: the engine's tests
+        run: |
+          cmake -S . -B build/engine -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER=clang-23 \
+            -DCMAKE_CXX_COMPILER=clang++-23 \
+            -DCMAKE_CXX_FLAGS="-stdlib=libstdc++" \
+            -DCMAKE_CXX_STDLIB_MODULES_JSON=/tmp/libstdc++.modules.json \
+            -DCALCULATOR_ENGINE_ONLY=ON
+          cmake --build build/engine
+          (cd build/engine && ctest --output-on-failure)
+
+      - uses: actions/cache@v4
+        with:
+          path: /tmp/emsdk
+          key: emsdk-6.0.13-${{ runner.os }}
+      - name: Emscripten
+        run: |
+          if [ ! -x /tmp/emsdk/emsdk ]; then
+            git clone --depth 1 https://github.com/emscripten-core/emsdk.git /tmp/emsdk
+            /tmp/emsdk/emsdk install 6.0.13
+          fi
+          /tmp/emsdk/emsdk activate 6.0.13
+
+      # Which build of the compiler this is: apt.llvm.org's clang 23 is a
+      # nightly, and a module file is read only by the build that made it.
+      - name: the compiler's build
+        run: echo "COMPILER_BUILD=$( (clang++-23 --version; /tmp/emsdk/upstream/bin/clang++ --version) | sha256sum | cut -c1-12)" >> "$GITHUB_ENV"
+      - uses: actions/cache/restore@v4
+        with:
+          path: |
+            build
+            ~/.cache/cmake-everywhere
+          key: build-${{ runner.os }}-${{ env.COMPILER_BUILD }}-${{ github.sha }}
+          restore-keys: build-${{ runner.os }}-${{ env.COMPILER_BUILD }}-
+      # ninja goes by file times: a source changed since the build restored
+      # was made gets the time this run began; the rest, an old one.
+      - name: file times against the build restored
+        run: |
+          mkdir -p build
+          began=$(date +%s)
+          git ls-files -z | xargs -0 touch -d "@1000000000"
+          if [ -f build/sources.sha1 ]; then
+            git ls-files -z | xargs -0 sha1sum | sort > /tmp/sources-now.sha1
+            sort build/sources.sha1 | comm -13 - /tmp/sources-now.sha1 | cut -c43- > build/changed-sources
+          else
+            git ls-files > build/changed-sources
+          fi
+          tr '\n' '\0' < build/changed-sources | xargs -0 -r touch -d "@$began"
+
+      # views::enumerate is libc++ 23's, and Emscripten's libc++ is 22: the
+      # view, from the libc++ 23 that came with clang 23, put into
+      # Emscripten's. Until an emsdk comes with libc++ 23.
+      - name: views::enumerate in Emscripten's libc++
+        run: |
+          python3 - <<'EOF'
+          import pathlib, shutil
+          e = pathlib.Path('/tmp/emsdk/upstream/emscripten')
+          view = pathlib.Path('/usr/lib/llvm-23/include/c++/v1/__ranges/enumerate_view.h')
+          places = [(e / 'system/lib/libcxx/include', e / 'system/lib/libcxx/modules/std/ranges.inc'),
+                    (e / 'cache/sysroot/include/c++/v1', e / 'cache/sysroot/share/libc++/v1/std/ranges.inc')]
+          export = ('\n    // [range.enumerate]\n    using std::ranges::enumerate_view;\n\n'
+                    '    namespace views {\n      using std::ranges::views::enumerate;\n    }\n')
+          for include, module in places:
+              if not (include / 'ranges').exists():
+                  continue
+              shutil.copy(view, include / '__ranges/enumerate_view.h')
+              ranges = (include / 'ranges').read_text()
+              if 'enumerate_view.h' not in ranges:
+                  at = '#    include <__ranges/elements_view.h>\n'
+                  assert at in ranges
+                  ranges = ranges.replace(at, at + '#    include <__ranges/enumerate_view.h>\n', 1)
+                  (include / 'ranges').write_text(ranges)
+              text = module.read_text()
+              if 'views::enumerate' not in text:
+                  at = '      using std::ranges::views::chunk_by;\n    }\n'
+                  assert at in text
+                  text = text.replace(at, at + export, 1)
+                  module.write_text(text)
+              print('enumerate put into', include)
+          EOF
+
+      - name: the page, under Emscripten
+        run: |
+          source /tmp/emsdk/emsdk_env.sh
+          emcmake cmake -S . -B build/wasm -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_FLAGS="-fexceptions -mmutable-globals" \
+            -DCME_STORE_ENABLED=ON -DCME_SOURCES_ENABLED=ON
+          cmake --build build/wasm --target calculator -- -k 0
+
+      - name: the program that writes it out, natively
+        run: |
+          cmake -S . -B build/native -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER=clang-23 \
+            -DCMAKE_CXX_COMPILER=clang++-23 \
+            -DCMAKE_CXX_FLAGS="-stdlib=libstdc++" \
+            -DCMAKE_CXX_STDLIB_MODULES_JSON=/tmp/libstdc++.modules.json \
+            -DCME_STORE_ENABLED=ON -DCME_SOURCES_ENABLED=ON
+          cmake --build build/native --target calculator calculator_engine_test -- -k 0
+          (cd build/native && ctest --output-on-failure)
+
+      - name: the page, put together
+        run: |
+          mkdir -p public
+          cp build/wasm/index.html build/wasm/index.js build/wasm/index.wasm public/
+          ls -la public/index.wasm
+          build/native/calculator public/static.html public/index.html
+          # The script and the WebAssembly named by this revision: a browser
+          # that kept the last index.js would load it with the new index.wasm.
+          V=${GITHUB_SHA::12}
+          python3 - "$V" <<'PY'
+          import re, sys, pathlib
+          page = pathlib.Path('public/index.html')
+          text = page.read_text()
+          made, count = re.subn(r'(<script[^>]*?\bsrc=)(["\']?)index\.js\2', lambda m: m.group(1) + '"index.js?v=' + sys.argv[1] + '"', text)
+          print('index.js named by revision in', count, 'tag(s)')
+          page.write_text(made)
+          PY
+          sed -i "s#locateFile(\"index.wasm\")#locateFile(\"index.wasm?v=$V\")#" public/index.js
+          grep -q "index.js?v=$V" public/index.html || { echo "index.html does not name index.js by revision"; exit 1; }
+          grep -q "index.wasm?v=$V" public/index.js || { echo "index.js does not name index.wasm by revision"; exit 1; }
+          ls -la public
+
+      # The page pressed in real browsers, as it is published: by the mouse
+      # and by the keyboard (test/browser.mjs).
+      - name: in real browsers
+        run: |
+          mkdir -p /tmp/site
+          cp -r public /tmp/site/calculator
+          (cd /tmp/site && python3 -m http.server 8000 > /tmp/http.log 2>&1 &)
+          cd test
+          npm init -y > /dev/null
+          npm install --no-audit --no-fund playwright@1 > /dev/null
+          npx playwright install --with-deps chromium firefox > /dev/null
+          node browser.mjs http://127.0.0.1:8000/calculator/
+
+      - name: what the build was made from
+        if: always()
+        run: git ls-files -z | xargs -0 sha1sum | sort > build/sources.sha1
+      - uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: |
+            build
+            ~/.cache/cmake-everywhere
+          key: build-${{ runner.os }}-${{ env.COMPILER_BUILD }}-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+
+  deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
